@@ -42,7 +42,7 @@ jobs:
       run: | 
         git config --global user.name 'andotorg' 
         git config --global user.email 'andotorg@outlook.com'
-        git remote set-url origin https://github.com/andotorg/andotorg.github.io.git
+        
     - name: Deploy Hexo 
       run: |
         hexo clean
