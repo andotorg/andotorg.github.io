@@ -8,22 +8,33 @@ on:
       - master
       
 jobs:
-  build: 
-    runs-on: ubuntu-latest 
-        
+  build-and-deploy:
+    runs-on: ubuntu-latest
     steps:
-    # check it to your workflow can access it
-    # from: https://github.com/actions/checkout
-    - name: Checkout Repository master branch
-      uses: actions/checkout@master 
-      
-    # from: https://github.com/actions/setup-node  
-    - name: Setup Node.js 12.x 
-      uses: actions/setup-node@master
-      with:
-        node-version: "12.x"
+
+    - name: 1. git checkout...
+      uses: actions/checkout@v1
+
+    - name: 2. setup nodejs...
+      uses: actions/setup-node@v1
+
+    - name: 3. install hexo...
+      run: |
+        npm install hexo-cli -g
+        npm i -S hexo-prism-plugin -g
+        npm install hexo-generator-search --save -g
+        npm i hexo-permalink-pinyin  -g
+        npm i --save hexo-wordcount -g
+        npm install hexo-filter-github-emojis  -g
+        npm install hexo-generator-feed  -g
+        npm install
+
+    - name: 4. hexo generate public files...
+      run: |
+        hexo clean
+        hexo g
     
-    - name: Build and Deploy
+    - name: 5. Build and Deploy
       uses: y4code/hexo-deploy-action@master
       env:
         PERSONAL_TOKEN: ${{ secrets.GITHUB_TOKEN }}
