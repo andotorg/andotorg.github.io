@@ -105,7 +105,8 @@ theme: fluid
 deploy:
   type: git
   repo: https://github.com/andotorg/andotorg.github.io
-  branch: publish
+  branch: site
+  token: $HEXO_DEPLOY_PRIVATE_KEY
   message: publish site
 
 netlify_cms:
