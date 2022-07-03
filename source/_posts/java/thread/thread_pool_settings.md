@@ -1,5 +1,5 @@
 ---
-title: ThreadPoolExecutor 参数设置 [转载]
+title: ThreadPoolExecutor 参数设置 [网络转载]
 date: 2020-10-20
 tags: ThreadPoolExecutor, Java,ThreadPool,线程池,高并发
 categories: Java Base
