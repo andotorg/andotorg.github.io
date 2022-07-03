@@ -23,18 +23,10 @@ jobs:
       with:
         node-version: "12.x"
     
-    - name: Setup Hexo Dependencies
-      run: |
-        npm install hexo-cli -g
-        npm install
-        npm install hexo-deployer-git
- 
-    - name: Deploy Hexo 
+    - name: Build and Deploy
+      uses: y4code/hexo-deploy-action@master
       env:
-        HEXO_DEPLOY_PRIVATE_KEY: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        git config --global user.email "andotorg@outlook.com"
-        git config --global user.name "andotorg"
-        hexo clean
-        hexo generate 
-        hexo deploy
+        PERSONAL_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PUBLISH_REPOSITORY: andotorg/andotorg.github.io
+        BRANCH: site
+        PUBLISH_DIR: ./site
