@@ -29,4 +29,4 @@ jobs:
         PERSONAL_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         PUBLISH_REPOSITORY: andotorg/andotorg.github.io
         BRANCH: site
-        PUBLISH_DIR: ./site
+        PUBLISH_DIR: ./docs
