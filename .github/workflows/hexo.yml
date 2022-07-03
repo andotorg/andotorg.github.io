@@ -28,22 +28,10 @@ jobs:
         npm install hexo-cli -g
         npm install
         npm install hexo-deployer-git
-    
-    - name: Setup Deploy Private Key
+ 
+    - name: Deploy Hexo 
       env:
         HEXO_DEPLOY_PRIVATE_KEY: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        mkdir -p ~/.ssh/
-        echo "$HEXO_DEPLOY_PRIVATE_KEY" > ~/.ssh/id_rsa 
-        chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan github.com >> ~/.ssh/known_hosts
-        
-    - name: Setup Git Infomation
-      run: | 
-        git config --global user.name 'andotorg' 
-        git config --global user.email 'andotorg@outlook.com'
-        
-    - name: Deploy Hexo 
       run: |
         hexo clean
         hexo generate 
