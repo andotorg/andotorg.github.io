@@ -1,5 +1,5 @@
 ---
-title: Hello Andot Studio erer
+title: Hello Andot Studio
 ---
 Welcome to [AndotStudio](https://andot.org/)! 
 
