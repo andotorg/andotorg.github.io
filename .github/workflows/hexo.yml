@@ -1,43 +1,41 @@
-# workflow name
-name: Hexo Blog CI
+name: Hexo Deploy
 
-# master branch on push, auto run
-on: 
+on:
   push:
     branches:
       - master
-      
+
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-18.04
+    if: github.event.repository.owner.id == github.event.sender.id
+
     steps:
+      - name: Checkout source
+        uses: actions/checkout@v2
+        with:
+          ref: master
 
-    - name: 1. git checkout...
-      uses: actions/checkout@v1
+      - name: Setup Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: '12'
 
-    - name: 2. setup nodejs...
-      uses: actions/setup-node@v1
+      - name: Setup Hexo
+        env:
+          ACTION_DEPLOY_KEY: ${{ secrets.HEXO_DEPLOY_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$ACTION_DEPLOY_KEY" > ~/.ssh/id_rsa
+          chmod 700 ~/.ssh
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git config --global user.email "john@doe.com"
+          git config --global user.name "John Doe"
+          npm install hexo-cli -g
+          npm install
 
-    - name: 3. install hexo...
-      run: |
-        npm install hexo-cli -g
-        npm i -S hexo-prism-plugin -g
-        npm install hexo-generator-search --save -g
-        npm i hexo-permalink-pinyin  -g
-        npm i --save hexo-wordcount -g
-        npm install hexo-filter-github-emojis  -g
-        npm install hexo-generator-feed  -g
-        npm install
-
-    - name: 4. hexo generate public files...
-      run: |
-        hexo clean
-        hexo g
-    
-    - name: 5. Build and Deploy
-      uses: y4code/hexo-deploy-action@master
-      env:
-        PERSONAL_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        PUBLISH_REPOSITORY: andotorg/andotorg.github.io
-        BRANCH: site
-        PUBLISH_DIR: ./docs
+      - name: Deploy
+        run: |
+          hexo clean
+          hexo deploy
