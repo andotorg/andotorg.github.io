@@ -6,4 +6,4 @@ tags: Java,CAP,Spring,微服务
 
 # CAP 分布式一致性
 
-> CAP是
+> CAP是分布式协议
