@@ -37,9 +37,9 @@ tags: Java,SkyWalking,Spring,Linux,WuSheng,Agent,Monitor
 
    - /apm-network/target/generated-sources/protobuf/ 下的 `grpc-java` 和 `java` 目录
 
-![image-20220521231409950](./img/1.png)
+![image-20220521231409950](/images/sw/1.png)
 
-![image-20220521231531897](./img/image-20220521231531897.png)
+![image-20220521231531897](/images/sw/image-20220521231531897.png)
 
 最新版本的skywalking-java 要配合[apache](https://github.com/apache)/**[skywalking-data-collect-protocol](https://github.com/apache/skywalking-data-collect-protocol)** 至少是9.0.0才可以。
 
@@ -49,7 +49,7 @@ tags: Java,SkyWalking,Spring,Linux,WuSheng,Agent,Monitor
 mvn package -Dmaven.test.skip=true
 ```
 
-![image-20220522002708218](./img/image-20220522002708218.png)
+![image-20220522002708218](/images/sw/image-20220522002708218.png)
 
 ## 在IDEA启动一个SpringBoot Web项目
 
@@ -61,4 +61,4 @@ mvn package -Dmaven.test.skip=true
 -Dskywalking.collector.backend_service=192.168.1.9:11800
 ```
 
-![image-20220522002859192](./img/image-20220522002859192.png)
+![image-20220522002859192](/images/sw/image-20220522002859192.png)
