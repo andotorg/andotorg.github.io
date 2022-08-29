@@ -1,4 +1,9 @@
-# Java8 Stream Sort
+---
+title: Java8 Stream Sort
+date: 2022-07-20
+tags: Java8,Stream,Sort
+categories: Java Base
+---
 
 ## 按照姓名首字母排序
 
