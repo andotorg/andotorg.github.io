@@ -1,9 +1,6 @@
 name: Pages
 
-on:
-  push:
-    branches:
-      - master  # default branch
+on: [push]
 
 jobs:
   build:
@@ -12,8 +9,6 @@ jobs:
       - uses: actions/checkout@v3
         with:
           token: ${{ secrets.GH_TOKEN }}
-          # If your repository depends on submodule, please see: https://github.com/actions/checkout
-          submodules: recursive
       - name: Use Node.js 16.x
         uses: actions/setup-node@v2
         with:
