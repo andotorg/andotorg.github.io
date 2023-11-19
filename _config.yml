@@ -101,7 +101,7 @@ ignore:
 theme: fluid
 
 # Deployment
-## Docs: https://hexo.io/docs/one-command-deployment
+## Docs: https://hexo.io/docs/one-command-deployment     
 deploy:
   type: git
   repo: https://github.com/andotorg/andotorg.github.io.git
