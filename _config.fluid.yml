@@ -114,8 +114,8 @@ aplayer:  # 音乐播放器，注意不能与 hexo-tag-aplayer 插件共用
   order: 'random'  # 播放顺序，可选值: 'list', 'random'
   theme: '#b7daff'  # 主题色
   songs:  # 歌曲列表，必须传入下列各参数，其中 url 与 cover 在本地需存于 source 目录，更多参数见文档：https://aplayer.js.org/#/zh-Hans/?id=%E5%8F%82%E6%95%B0
-    - { name: 'name', artist: 'artist', url: '/resource/music/yq.mp3', cover: '/img/cover.jpg' }
-    - { name: 'name', artist: 'artist', url: '/resource/music/yq.mp3', cover: 'https://...cover.jpg' }
+    - { name: '格日勒台雅布那毕 - 包银廷&王宇震', artist: 'artist', url: 'https://www.ihaoge.net/server/1/237410182.mp3', cover: '/resource/covert.png' }
+    - { name: '迎亲', artist: 'artist', url: '/resource/music/yq.mp3', cover: 'https://...cover.jpg' }
 
 version:  # 主题版本相关
   check: false  # 每次生成页面后，检测主题是否为最新版本
