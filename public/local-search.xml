@@ -4,17 +4,588 @@
   
   
   <entry>
-    <title>MySQL分区可行性调研</title>
-    <link href="/2021/11/17/mysql/mysql_partition_research/"/>
-    <url>/2021/11/17/mysql/mysql_partition_research/</url>
+    <title>Redis深度历险 - Redis 基础数据类型</title>
+    <link href="/2023/10/05/database/redis/redis_deep_adventure/2.basic_data_type/"/>
+    <url>/2023/10/05/database/redis/redis_deep_adventure/2.basic_data_type/</url>
     
-    <content type="html"><![CDATA[<h1 id="MySQL分区可行性调研"><a href="#MySQL分区可行性调研" class="headerlink" title="MySQL分区可行性调研"></a>MySQL分区可行性调研</h1><h2 id="一、什么是分区"><a href="#一、什么是分区" class="headerlink" title="一、什么是分区"></a>一、什么是分区</h2><h3 id="1、MySQL存储原理"><a href="#1、MySQL存储原理" class="headerlink" title="1、MySQL存储原理"></a>1、MySQL存储原理</h3><p>MySQL是支持ACID事务的，其中一个D就是持久化，持久化就代表了：插入MySQL的数据最终还是要落到磁盘中，这样才能做到真正的持久化。</p><p>MySQL存储文件在磁盘中，每一个数据库里面有很多存储文件：</p><p>针对InnoDB引擎来说</p><p>数据库配置信息文件（.opt）</p><p>表元数据文件（.frm）、表数据文件（ibd）；</p><h4 id="opt文件"><a href="#opt文件" class="headerlink" title=".opt文件"></a>.opt文件</h4><p>包含数据库配置信息的文件。</p><h4 id="frm-文件"><a href="#frm-文件" class="headerlink" title=".frm 文件"></a>.frm 文件</h4><p>包含元数据的文件，例如 MySQL 表的表定义。</p><p>对于备份，您必须始终将完整的.frm文件集与备份数据一起保留 ，以便能够恢复备份后更改或删除的表。</p><p>尽管每个InnoDB表都有一个 .frm文件，InnoDB 但在系统表空间中维护自己的表元数据 。</p><h4 id="ibd文件"><a href="#ibd文件" class="headerlink" title=".ibd文件"></a>.ibd文件</h4><p>保存了数据库的数据信息和关联索引信息。</p><p>file-per-table 表空间和通用表空间 的数据文件 。File-per-table 表空间 .ibd文件包含单个表和关联的索引数据。通用表空间 .ibd文件可能包含多个表的表和索引数据。MySQL 5.7.6 中引入了通用表空间。</p><p>该.ibd文件的扩展名不适用于 系统表空间，它由一个或多个ibdata文件。<br>如果使用该DATA DIRECTORY =子句创建 file-per-table 表空间或通用表空间，则该 .ibd文件位于指定路径，在正常数据目录之外，并由.isl 文件指向 。<br>​</p><p><img src="/docs/mysql/partition/index.png"></p><h3 id="2、MySQL分区原理"><a href="#2、MySQL分区原理" class="headerlink" title="2、MySQL分区原理"></a>2、MySQL分区原理</h3><p>官方详细文档：<a href="https://dev.mysql.com/doc/refman/5.7/en/partitioning.html">https://dev.mysql.com/doc/refman/5.7/en/partitioning.html</a><br>从 MySQL 5.7.17 开始，MySQL 服务器中的通用分区处理程序已弃用，并在 MySQL 8.0 中删除，因为用于给定表的存储引擎预计会提供自己的（“本机”）分区处理程序。目前，只有InnoDB和 NDB存储引擎可以做到这一点。</p><p>要准备迁移到 MySQL 8.0，任何具有非本机分区的表都应更改为使用提供本机分区的引擎，或者设为非分区。例如，要将表更改为InnoDB，请执行以下语句：</p><pre><code class="hljs sql"><span class="hljs-keyword">ALTER</span> <span class="hljs-keyword">TABLE</span> table_name <span class="hljs-keyword">ENGINE</span> = <span class="hljs-keyword">INNODB</span>;</code></pre><p>设置分区之后会在磁盘中产生用#分隔开的独立的分区文件</p><p>还有独立一个文件为pre的分区信息表，类似磁盘分区的一个mbr分区文件</p><p>分区键的数据类型。 分区键必须是整数列或解析为整数的表达式。ENUM不能使用使用列的表达式 。列或表达式值也可能是NULL. </p><p>最大分区数。  不使用NDB存储引擎的给定表的最大可能分区数是 8192。这个数字包括子分区。</p><h4 id="2-1、分区类型"><a href="#2-1、分区类型" class="headerlink" title="2.1、分区类型"></a>2.1、分区类型</h4><h5 id="2-1-1、-范围划分"><a href="#2-1-1、-范围划分" class="headerlink" title="2.1.1、 范围划分"></a>2.1.1、 范围划分</h5><p>分段划分： 1-10  11-20 数据落在哪个区间，则在哪个分区中。 （是一组连续的区间）<br>分区值为固定值<br>​</p><p><img src="/docs/mysql/partition/range.png"></p><h5 id="2-1-2、-LIST-分区"><a href="#2-1-2、-LIST-分区" class="headerlink" title="2.1.2、 LIST 分区"></a>2.1.2、 LIST 分区</h5><p>类似于分区 by RANGE，不同之处在于分区是根据几个离散的值，例如 5 、6 、8 、9是一个分区<br>分区值为固定值<br>​</p><p><img src="/docs/mysql/partition/list.png"></p><h4 id="2-1-4、列分区"><a href="#2-1-4、列分区" class="headerlink" title="2.1.4、列分区"></a>2.1.4、列分区</h4><p>所有整数类型：TINYINT、 SMALLINT、 MEDIUMINT、 INT ( INTEGER) 和 BIGINT。<br>DATE和 DATETIME。</p><p>下面的字符串类型： CHAR， VARCHAR， BINARY，和 VARBINARY。</p><p>分区值设置为列名，根据选择列对应的数据进行分区，例如时间分区</p><h5 id="2-1-4-1、RANGE-COLUMNS分区RANGE在以下方面与分区有很大不同"><a href="#2-1-4-1、RANGE-COLUMNS分区RANGE在以下方面与分区有很大不同" class="headerlink" title="2.1.4.1、RANGE COLUMNS分区RANGE在以下方面与分区有很大不同"></a>2.1.4.1、RANGE COLUMNS分区RANGE在以下方面与分区有很大不同</h5><p>① 不接受表达式，只接受列名。</p><p>② 接受一列或多列的列表。</p><p>③ 分区基于 元组（列值列表）之间的比较，而不是标量值之间的比较。</p><p>⑤ 分区列不限于整数列；字符串， DATE并且 DATETIME列也可以作为分区列。</p><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span> table_namePARTITION <span class="hljs-keyword">BY</span> <span class="hljs-keyword">RANGE</span> <span class="hljs-keyword">COLUMNS</span>(column_list) (    <span class="hljs-keyword">PARTITION</span> partition_name <span class="hljs-keyword">VALUES</span> <span class="hljs-keyword">LESS</span> <span class="hljs-keyword">THAN</span> (value_list)[,    <span class="hljs-keyword">PARTITION</span> partition_name <span class="hljs-keyword">VALUES</span> <span class="hljs-keyword">LESS</span> <span class="hljs-keyword">THAN</span> (value_list)][,    ...])</code></pre><h5 id="2-1-4-2、RANGE-COLUMNS分区RANGE在以下方面与分区有很大不同"><a href="#2-1-4-2、RANGE-COLUMNS分区RANGE在以下方面与分区有很大不同" class="headerlink" title="2.1.4.2、RANGE COLUMNS分区RANGE在以下方面与分区有很大不同"></a>2.1.4.2、RANGE COLUMNS分区RANGE在以下方面与分区有很大不同</h5><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span> customers_1 (    first_name <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">25</span>),    last_name <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">25</span>),    street_1 <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">30</span>),    street_2 <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">30</span>),    city <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">15</span>),    renewal <span class="hljs-built_in">DATE</span>)<span class="hljs-keyword">PARTITION</span> <span class="hljs-keyword">BY</span> <span class="hljs-keyword">LIST</span> <span class="hljs-keyword">COLUMNS</span>(city) (    <span class="hljs-keyword">PARTITION</span> pRegion_1 <span class="hljs-keyword">VALUES</span> <span class="hljs-keyword">IN</span>(<span class="hljs-string">&#x27;Oskarshamn&#x27;</span>, <span class="hljs-string">&#x27;Högsby&#x27;</span>, <span class="hljs-string">&#x27;Mönsterås&#x27;</span>),    <span class="hljs-keyword">PARTITION</span> pRegion_2 <span class="hljs-keyword">VALUES</span> <span class="hljs-keyword">IN</span>(<span class="hljs-string">&#x27;Vimmerby&#x27;</span>, <span class="hljs-string">&#x27;Hultsfred&#x27;</span>, <span class="hljs-string">&#x27;Västervik&#x27;</span>),    <span class="hljs-keyword">PARTITION</span> pRegion_3 <span class="hljs-keyword">VALUES</span> <span class="hljs-keyword">IN</span>(<span class="hljs-string">&#x27;Nässjö&#x27;</span>, <span class="hljs-string">&#x27;Eksjö&#x27;</span>, <span class="hljs-string">&#x27;Vetlanda&#x27;</span>),    <span class="hljs-keyword">PARTITION</span> pRegion_4 <span class="hljs-keyword">VALUES</span> <span class="hljs-keyword">IN</span>(<span class="hljs-string">&#x27;Uppvidinge&#x27;</span>, <span class="hljs-string">&#x27;Alvesta&#x27;</span>, <span class="hljs-string">&#x27;Växjo&#x27;</span>));</code></pre><h5 id="2-1-5、-HASH-分区"><a href="#2-1-5、-HASH-分区" class="headerlink" title="2.1.5、 HASH 分区"></a>2.1.5、 HASH 分区</h5><p> 使用这种类型的分区，根据用户定义的表达式返回的值选择分区，该表达式对要插入表的行中的列值进行操作。该函数可以由任何在 MySQL 中有效的表达式组成，该表达式产生一个非负整数值。LINEAR HASH也可以使用此类型的扩展名。<br>​</p><p><img src="/docs/mysql/partition/hash.png"></p><h5 id="2-1-6、-KEY分区"><a href="#2-1-6、-KEY分区" class="headerlink" title="2.1.6、 KEY分区"></a>2.1.6、 KEY分区</h5><p>这种类型的分区类似于分区 by HASH，只是只提供了一个或多个要评估的列，并且 MySQL 服务器提供了自己的散列函数。这些列可以包含非整数值，因为 MySQL 提供的散列函数保证整数结果，而不管列数据类型如何。LINEAR KEY也可以使用此类型的扩展名 。<br>​</p><p><img src="/docs/mysql/partition/key.png"></p><p>数据库分区的一个非常常见的用途是按日期分隔数据。一些数据库系统支持显式日期分区，MySQL 在 5.7 中没有实现。但是，在 MySQL 中创建基于DATE、 TIME、 或 DATETIME列或基于使用这些列的表达式的分区方案并不困难 。</p><p>按KEY或分区时LINEAR KEY，可以使用DATE、 TIME、 或 DATETIME列作为分区列，而无需对列值进行任何修改。</p><h5 id="2-1-7、-子分区"><a href="#2-1-7、-子分区" class="headerlink" title="2.1.7、 子分区"></a>2.1.7、 子分区</h5><p>类似嵌套分区，每一个分区下面再加一个分区<br>​</p><p><img src="/docs/mysql/partition/child.png"></p><h4 id="2-7-MySQL-分区如何处理-NULL"><a href="#2-7-MySQL-分区如何处理-NULL" class="headerlink" title="2.7 MySQL 分区如何处理 NULL"></a>2.7 MySQL 分区如何处理 NULL</h4><p>NULL会被认为比任何值都小的分区里面放置</p><p>具体详细使用方式为：<a href="https://dev.mysql.com/doc/refman/5.7/en/partitioning-handling-nulls.html">https://dev.mysql.com/doc/refman/5.7/en/partitioning-handling-nulls.html</a></p><h2 id="二、分区与分表的区别"><a href="#二、分区与分表的区别" class="headerlink" title="二、分区与分表的区别"></a>二、分区与分表的区别</h2><p>分表：分表是从物理上分开，一张表分为多张表</p><p>分区：分区是从逻辑上分开，一张表还是一张表，只是里面按照固定字段或者设定值来进行分不同的存储区</p><h2 id="三、分区的优点"><a href="#三、分区的优点" class="headerlink" title="三、分区的优点"></a>三、分区的优点</h2><p>1、分区之后，查询只查询单个区，或者几个区，查询数据量总体减少，提高查询性能</p><p>2、分区在逻辑上进行拆分表数据，实际上还是同一张表</p><p>3、分区可以设置多个磁盘进行分区存储，比单个磁盘分区容量更大</p><p>4、插入数据不需要手动的去处理插入哪个表的问题，增删改不需要修改</p><p>5、不需要引入第三方中间件，有效降低开发难度</p><blockquote><p>官方给出优点：</p></blockquote><p>分区使得在一个表中存储的数据比单个磁盘或文件系统分区上存储的数据更多成为可能。<br>通过删除仅包含该数据的分区（或多个分区），通常可以轻松地从分区表中删除失去其用处的数据。相反，在某些情况下，通过添加一个或多个新分区来专门存储该数据，可以极大地促进添加新数据的过程。</p><p>某些查询可以极大地优化，因为满足给定WHERE子句的数据只能存储在一个或多个分区上，这会自动从搜索中排除任何剩余的分区。由于在创建分区表后可以更改分区，因此您可以重新组织数据以增强在首次设置分区方案时可能不经常使用的频繁查询。这种排除不匹配分区（以及它们包含的任何行）的能力通常称为 分区修剪。</p><p>出处：<a href="https://dev.mysql.com/doc/refman/5.7/en/partitioning-overview.html">https://dev.mysql.com/doc/refman/5.7/en/partitioning-overview.html</a></p><h2 id="四、分区的缺点"><a href="#四、分区的缺点" class="headerlink" title="四、分区的缺点"></a>四、分区的缺点</h2><p>1、表可访问性。 有时，服务器 SQL 模式的更改可能会使分区表无法使用。</p><p>2、分区可能在MySQL版本上会有所差异，该问题不可控。</p><p>3、存储引擎。 使用表进行分区操作、查询和更新操作通常MyISAM 比使用InnoDB或 NDB表更快。（对于有事务的表不太适合分区）</p><p>4、全文索引。 分区表不支持FULLTEXT 索引或搜索，即使是使用InnoDB或 MyISAM存储引擎的分区表 。</p><p>5、临时表。 临时表不能分区。</p><p>6、InnoDB外键和 MySQL 分区不兼容。分区 InnoDB表不能有外键引用，也不能有外键引用的列。InnoDB具有或被外键引用的表不能被分区。InnoDB不支持将多个磁盘用于子分区。（目前仅支持此功能 MyISAM。）</p><pre><code>  6.1、InnoDB使用用户定义分区 的表的定义不得包含外键引用；不能InnoDB对定义包含外键引用的表进行分区。 6.2、任何InnoDB表定义都不能包含对用户分区表的外键引用；任何 InnoDB具有用户定义分区的表都不能包含由外键引用的列。</code></pre><p>7、不支持查询缓存。 分区表不支持查询缓存，并且对于涉及分区表的查询会自动禁用。无法为此类查询启用查询缓存。</p>]]></content>
+    <content type="html"><![CDATA[]]></content>
+    
+    
+    <categories>
+      
+      <category>ReadingBooks</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>ReadingBooks,Book,Redis</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>读书记录 - 索引 [ReadingBooks]</title>
+    <link href="/2023/10/01/database/redis/read_book_record/"/>
+    <url>/2023/10/01/database/redis/read_book_record/</url>
+    
+    <content type="html"><![CDATA[]]></content>
+    
+    
+    <categories>
+      
+      <category>ReadingBooks</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>ReadingBooks,Book</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>Redis深度历险 - Redis可以做什么？</title>
+    <link href="/2023/10/01/database/redis/redis_deep_adventure/1.frist/"/>
+    <url>/2023/10/01/database/redis/redis_deep_adventure/1.frist/</url>
+    
+    <content type="html"><![CDATA[<p>1、记录帖子的点赞数、评论数和点击数（hash）</p><p>2、记录用户的帖子ID列表（排序），便于快速显示用户的帖子列表（zset）</p><p>3、记录帖子的标题、摘要、作者和封面信息，用于列表页展示（hash）</p><p>4、记录帖子的点赞数用户id列表，评论id列表，用于显示和去重计数（zset）</p><p>5、缓存近期热帖内容（帖子内容的空间占用比较大），减少数据库压力（hash）</p><p>6、记录帖子的相关文章id，根据内容推荐相关的帖子（list）</p><p>7、如果帖子id是整数自增的可以使用redis来分配帖子id（计数器）</p><p>8、收藏集和帖子之间的关系（zset）</p><p>9、记录热榜帖子id列表、总热榜和分类热榜（zset）</p><p>10、缓存用户行为历史，过滤恶意行为（zset、hash）</p>]]></content>
+    
+    
+    <categories>
+      
+      <category>ReadingBooks</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>ReadingBooks,Book,Redis</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title></title>
+    <link href="/2023/09/27/java/base/index/"/>
+    <url>/2023/09/27/java/base/index/</url>
+    
+    <content type="html"><![CDATA[]]></content>
+    
+    
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>Hello Andot Studio</title>
+    <link href="/2023/09/27/hello-andot/"/>
+    <url>/2023/09/27/hello-andot/</url>
+    
+    <content type="html"><![CDATA[<p>Welcome to <a href="https://andot.org/">AndotStudio</a>! </p><h2 id="欢迎您们来到我的个人博客"><a href="#欢迎您们来到我的个人博客" class="headerlink" title="欢迎您们来到我的个人博客"></a>欢迎您们来到我的个人博客</h2><h3 id="知乎"><a href="#知乎" class="headerlink" title="知乎"></a>知乎</h3><blockquote><p>个人主页：<a href="https://www.zhihu.com/people/antsdot">https://www.zhihu.com/people/antsdot</a></p></blockquote><blockquote><p>知乎专栏：<a href="https://www.zhihu.com/column/artskill">https://www.zhihu.com/column/artskill</a></p></blockquote><blockquote><p>个人网站：</p></blockquote>]]></content>
+    
+    
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title></title>
+    <link href="/2023/09/27/git/reset/keep/"/>
+    <url>/2023/09/27/git/reset/keep/</url>
+    
+    <content type="html"><![CDATA[<h1 id="reset-keep"><a href="#reset-keep" class="headerlink" title="reset keep"></a>reset keep</h1><h2 id="保持"><a href="#保持" class="headerlink" title="保持"></a>保持</h2><pre><code class="hljs shell">git reset --keep HEAD~ [filename.java]</code></pre><blockquote><p>如果文件之间不通且具有本地更改，则重置终止</p></blockquote>]]></content>
+    
+    
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title></title>
+    <link href="/2023/09/27/git/reset/mixed/"/>
+    <url>/2023/09/27/git/reset/mixed/</url>
+    
+    <content type="html"><![CDATA[<h1 id="reset-mixed"><a href="#reset-mixed" class="headerlink" title="reset mixed"></a>reset mixed</h1><h2 id="更新索引"><a href="#更新索引" class="headerlink" title="更新索引"></a>更新索引</h2><blockquote><p>–mixed 是默认选项</p></blockquote><pre><code class="hljs shell">git reset --mixed HEAD~ [filename.java]git reset HEAD~ [filename.java]</code></pre><blockquote><p>把head的文件复制到index中</p></blockquote>]]></content>
+    
+    
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title></title>
+    <link href="/2023/09/27/git/reset/soft/"/>
+    <url>/2023/09/27/git/reset/soft/</url>
+    
+    <content type="html"><![CDATA[<h1 id="reset-soft"><a href="#reset-soft" class="headerlink" title="reset soft"></a>reset soft</h1><h2 id="移动-HEAD"><a href="#移动-HEAD" class="headerlink" title="移动 HEAD"></a>移动 HEAD</h2><pre><code class="hljs shell">git reset --soft HEAD~ [filename.java]</code></pre><blockquote><p>只会对 head 更改指向</p></blockquote>]]></content>
+    
+    
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title></title>
+    <link href="/2023/09/27/git/submodule/index/"/>
+    <url>/2023/09/27/git/submodule/index/</url>
+    
+    <content type="html"><![CDATA[<h1 id="submodule"><a href="#submodule" class="headerlink" title="submodule"></a>submodule</h1><h2 id="pull-all-sub-module"><a href="#pull-all-sub-module" class="headerlink" title="pull all sub module"></a>pull all sub module</h2><blockquote><p><code>git clone xxx --recurse-submodules</code></p></blockquote>]]></content>
+    
+    
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title></title>
+    <link href="/2023/09/27/git/proxy/git_proxy_setting/"/>
+    <url>/2023/09/27/git/proxy/git_proxy_setting/</url>
+    
+    <content type="html"><![CDATA[<h1 id="Git-设置代理和取消代理"><a href="#Git-设置代理和取消代理" class="headerlink" title="Git 设置代理和取消代理"></a>Git 设置代理和取消代理</h1><h2 id="如果代理类型是socks5进行如下设置即可"><a href="#如果代理类型是socks5进行如下设置即可" class="headerlink" title="如果代理类型是socks5进行如下设置即可"></a>如果代理类型是socks5进行如下设置即可</h2><p>``shell<br>git config –global http.proxy socks5://127.0.0.1:1080<br>git config –global https.proxy socks5://127.0.0.1:1080</p><pre><code class="hljs clean">## 如果是普通的http/https进行如下设置即可</code></pre><p>git config –global https.proxy <a href="http://127.0.0.1:1080/">http://127.0.0.1:1080</a><br>git config –global https.proxy <a href="https://127.0.0.1:1080/">https://127.0.0.1:1080</a></p><pre><code class="hljs clean">## 取消代理设置</code></pre><p>git config –global –unset http.proxy<br>git config –global –unset https.proxy<br>```</p>]]></content>
+    
+    
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title></title>
+    <link href="/2023/09/27/git/reset/hard/"/>
+    <url>/2023/09/27/git/reset/hard/</url>
+    
+    <content type="html"><![CDATA[<h1 id="reset-hard"><a href="#reset-hard" class="headerlink" title="reset hard"></a>reset hard</h1><h2 id="更新工作目录"><a href="#更新工作目录" class="headerlink" title="更新工作目录"></a>更新工作目录</h2><pre><code class="hljs shell">git reset --hard HEAD~ [filename.java]</code></pre><blockquote><p>该选项直接覆盖了工作目录，所以是直接删除了数据<br>只能铜鼓reflog进行恢复(文件提交的情况下)</p></blockquote>]]></content>
+    
+    
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title></title>
+    <link href="/2023/09/27/git/reset/index/"/>
+    <url>/2023/09/27/git/reset/index/</url>
+    
+    <content type="html"><![CDATA[<h1 id="reset-home"><a href="#reset-home" class="headerlink" title="reset home"></a>reset home</h1><h2 id="config"><a href="#config" class="headerlink" title="config"></a>config</h2><p><a href="./soft.md">git reset –soft</a></p><p><a href="./mixed.md">git reset –mixed</a></p><p><a href="./hard.md">git reset –hard</a></p><p><a href="./keep.md">git reset –keep</a></p>]]></content>
+    
+    
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title></title>
+    <link href="/2023/09/27/database/elasticsearch/dsl/"/>
+    <url>/2023/09/27/database/elasticsearch/dsl/</url>
+    
+    <content type="html"><![CDATA[<h1 id="DSL"><a href="#DSL" class="headerlink" title="DSL"></a>DSL</h1><h2 id="列出所有索引"><a href="#列出所有索引" class="headerlink" title="列出所有索引"></a>列出所有索引</h2><pre><code class="hljs json">GET /_cat/indices</code></pre><h2 id="只返回指定的字段的数据"><a href="#只返回指定的字段的数据" class="headerlink" title="只返回指定的字段的数据"></a>只返回指定的字段的数据</h2><pre><code class="hljs json">GET /andotorg_instance_traffic-20220629/_search&#123;    <span class="hljs-attr">&quot;_source&quot;</span>: [ <span class="hljs-string">&quot;name&quot;</span>, <span class="hljs-string">&quot;service_id&quot;</span>, <span class="hljs-string">&quot;andotorg_timestamp&quot;</span>]&#125;</code></pre><p>或者是包含谁，不包含谁</p><pre><code class="hljs json">&quot;_source&quot;: &#123;    &quot;includes&quot;: [ &quot;obj1.*&quot;, &quot;obj2.*&quot; ],    &quot;excludes&quot;: [ &quot;*.description&quot; ]&#125;</code></pre><h2 id=""><a href="#" class="headerlink" title=""></a></h2>]]></content>
+    
+    
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title></title>
+    <link href="/2023/09/27/database/mysql/mysql_ddl/"/>
+    <url>/2023/09/27/database/mysql/mysql_ddl/</url>
+    
+    <content type="html"><![CDATA[<h1 id="DDL"><a href="#DDL" class="headerlink" title="DDL"></a>DDL</h1><blockquote><p>如果没有类型之间的使用差异，则默认使用carchar代替类型<br>字符编码一律用utf8mb4  排序字符集一律用 utf8mb4_general_ci  </p></blockquote><h2 id="1-change-field-name"><a href="#1-change-field-name" class="headerlink" title="1. change field name"></a>1. change field name</h2><pre><code class="hljs sql"><span class="hljs-keyword">ALTER</span> <span class="hljs-keyword">TABLE</span> xxxxx<span class="hljs-keyword">CHANGE</span> <span class="hljs-keyword">COLUMN</span> <span class="hljs-string">`xxx`</span> <span class="hljs-string">`xxx_xx`</span> <span class="hljs-built_in">varchar</span>(<span class="hljs-number">255</span>) <span class="hljs-built_in">CHARACTER</span> <span class="hljs-keyword">SET</span> utf8mb4 <span class="hljs-keyword">COLLATE</span> utf8mb4_general_ci <span class="hljs-literal">NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-literal">NULL</span> <span class="hljs-keyword">COMMENT</span> <span class="hljs-string">&#x27;备注&#x27;</span> <span class="hljs-keyword">AFTER</span> <span class="hljs-string">`xxxx`</span>,</code></pre><p><code>ALTER</code></p>]]></content>
+    
+    
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>服务可用性设计 - 限流Java实现方式 [Architecture]</title>
+    <link href="/2023/09/01/architecture/practice/java_impl_limiting/"/>
+    <url>/2023/09/01/architecture/practice/java_impl_limiting/</url>
+    
+    <content type="html"><![CDATA[<p>保证服务可用性四大措施：负载均衡、服务熔断、服务降级、服务限流</p><p>服务限流Java实现</p>]]></content>
+    
+    
+    <categories>
+      
+      <category>Architecture</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>Architecture</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>服务可用性设计 - 限流 [Architecture]</title>
+    <link href="/2023/05/20/architecture/things/current_limiting/"/>
+    <url>/2023/05/20/architecture/things/current_limiting/</url>
+    
+    <content type="html"><![CDATA[<p>保证服务可用性四大措施：负载均衡、服务熔断、服务降级、服务限流</p><p>本章讲服务限流</p>]]></content>
+    
+    
+    <categories>
+      
+      <category>Architecture</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>Architecture</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>阿里的JetCache使用因为Spring DevTools引发类转换导致注解缓存不可用问题</title>
+    <link href="/2022/08/12/mideware/redis/jetcache_el_devtooks/"/>
+    <url>/2022/08/12/mideware/redis/jetcache_el_devtooks/</url>
+    
+    <content type="html"><![CDATA[<h1 id="阿里的JetCache使用因为Spring-DevTools引发类转换导致注解缓存不可用问题"><a href="#阿里的JetCache使用因为Spring-DevTools引发类转换导致注解缓存不可用问题" class="headerlink" title="阿里的JetCache使用因为Spring DevTools引发类转换导致注解缓存不可用问题"></a>阿里的JetCache使用因为Spring DevTools引发类转换导致注解缓存不可用问题</h1><h2 id="项目中引入依赖说明"><a href="#项目中引入依赖说明" class="headerlink" title="项目中引入依赖说明"></a>项目中引入依赖说明</h2><p>spring devtools、JetCache(version: 2.5.15)</p><h2 id="报错信息"><a href="#报错信息" class="headerlink" title="报错信息"></a>报错信息</h2><pre><code class="hljs text">Caused by: java.lang.ClassCastException: class xxxxx.App cannot be cast to class xxxxx.App (xxxxx.App is in unnamed module of loader org.springframework.boot.devtools.restart.classloader.RestartClassLoader @7d065827; xxxxx.App is in unnamed module of loader &#x27;app&#x27;)at spel.Ex2.getValue(Unknown Source)at org.springframework.expression.spel.standard.SpelExpression.getValue(SpelExpression.java:256)... 157 more</code></pre><h2 id="启动时查看我的App对象"><a href="#启动时查看我的App对象" class="headerlink" title="启动时查看我的App对象"></a>启动时查看我的App对象</h2><p>通过 app.getClass().getClassLoader() 查看是 RestartClassLoader<br>但是这里报错是因为使用AppClassLoader 加载的出现了问题</p><h2 id="点击报错行进入源码调试"><a href="#点击报错行进入源码调试" class="headerlink" title="点击报错行进入源码调试"></a>点击报错行进入源码调试</h2><p><img src="./img/jetcache-error.png" alt="img"></p><p>进入之后通过调试发现，当项目启动第一次或者第二次时没有问题，然后再获取缓存就出现类转换异常，导致el表达式模板转换错误</p><p>看源码这个代码</p><pre><code class="hljs java"><span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> Object <span class="hljs-title">evalKey</span><span class="hljs-params">(CacheInvokeContext context, CacheAnnoConfig cac)</span> </span>&#123;    String keyScript = cac.getKey();    <span class="hljs-keyword">try</span> &#123;        <span class="hljs-keyword">if</span> (cac.getKeyEvaluator() == <span class="hljs-keyword">null</span>) &#123;            <span class="hljs-keyword">if</span> (CacheConsts.isUndefined(keyScript)) &#123;                cac.setKeyEvaluator(o -&gt; &#123;                    CacheInvokeContext c = (CacheInvokeContext) o;                    <span class="hljs-keyword">return</span> c.getArgs() == <span class="hljs-keyword">null</span> ? <span class="hljs-string">&quot;_$JETCACHE_NULL_KEY$_&quot;</span> : c.getArgs();                &#125;);            &#125; <span class="hljs-keyword">else</span> &#123;                ExpressionEvaluator e = <span class="hljs-keyword">new</span> ExpressionEvaluator(keyScript, cac.getDefineMethod());                cac.setKeyEvaluator((o) -&gt; e.apply(o));            &#125;        &#125;        <span class="hljs-keyword">return</span> cac.getKeyEvaluator().apply(context);    &#125; <span class="hljs-keyword">catch</span> (Exception e) &#123;        logger.error(<span class="hljs-string">&quot;error occurs when eval key \&quot;&quot;</span> + keyScript + <span class="hljs-string">&quot;\&quot; in &quot;</span> + context.getMethod() + <span class="hljs-string">&quot;:&quot;</span> + e.getMessage(), e);        <span class="hljs-keyword">return</span> <span class="hljs-keyword">null</span>;    &#125;&#125;</code></pre><p>当解析el正常时，则会走 if (cac.getKeyEvaluator() == null) true分支</p><p>当解析el错误时，则会走 else 分支</p><p>通过初步判断为 第二次或者第三次走时，是有了某些缓存</p><p>进一步查看代码</p><p>是SpringEl表达式解析代码，会有一个缓存编译器的缓存操作</p><p>该问题在2.6版本后官方说是修复了，我测试下是可以了<br>具体沟通在这里<br><a href="https://github.com/alibaba/jetcache/issues/380">https://github.com/alibaba/jetcache/issues/380</a></p>]]></content>
     
     
     
     <tags>
       
-      <tag>Java,MySQL,IN,EXISTS,SQL优化</tag>
+      <tag>Java,CentOS,Spring,DevTools,JetCache,Redis,热加载,阿里</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>Java8 Stream Sort</title>
+    <link href="/2022/07/20/java/base/stream/sort/"/>
+    <url>/2022/07/20/java/base/stream/sort/</url>
+    
+    <content type="html"><![CDATA[<h2 id="按照姓名首字母排序"><a href="#按照姓名首字母排序" class="headerlink" title="按照姓名首字母排序"></a>按照姓名首字母排序</h2><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">SortDemo</span></span>&#123;    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">test</span><span class="hljs-params">(List&lt;TableBodyRow&gt; sourceList)</span> </span>&#123;        Collator collator = Collator.getInstance(Locale.CHINA);        List&lt;TableBodyRow&gt; targetList = sourceList.parallelStream()                .sorted(Comparator.comparing((o1, o2) -&gt; collator.compare(o1.getName() == <span class="hljs-keyword">null</span> ? <span class="hljs-string">&quot;&quot;</span> : o1.getName(), o2.getName() == <span class="hljs-keyword">null</span> ? <span class="hljs-string">&quot;&quot;</span> : o2.getName())))                .collect(Collectors.toList());    &#125;&#125;</code></pre><h3 id="多条件排序"><a href="#多条件排序" class="headerlink" title="多条件排序"></a>多条件排序</h3><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">SortDemo</span></span>&#123;    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">test</span><span class="hljs-params">(List&lt;TableBodyRow&gt; sourceList)</span> </span>&#123;        Collator collator = Collator.getInstance(Locale.CHINA);        List&lt;TableBodyRow&gt; targetList = sourceList.parallelStream()                .sorted(Comparator.comparing(TableBodyRow::getSex)                        .thenComparing(TableBodyRow::getAge)                        .thenComparing((o1, o2) -&gt; collator.compare(o1.getName() == <span class="hljs-keyword">null</span> ? <span class="hljs-string">&quot;&quot;</span> : o1.getName(), o2.getName() == <span class="hljs-keyword">null</span> ? <span class="hljs-string">&quot;&quot;</span> : o2.getName())))                .collect(Collectors.toList());    &#125;&#125;</code></pre>]]></content>
+    
+    
+    <categories>
+      
+      <category>Java Base</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>Java8,Stream,Sort</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>没有ui界面的Sentinel Quickstart</title>
+    <link href="/2022/07/15/mideware/sentinel/not_ui_quckstart/"/>
+    <url>/2022/07/15/mideware/sentinel/not_ui_quckstart/</url>
+    
+    <content type="html"><![CDATA[<h1 id="Not-UI-For-Sentinel-Quickstart"><a href="#Not-UI-For-Sentinel-Quickstart" class="headerlink" title="Not UI For Sentinel Quickstart"></a>Not UI For Sentinel Quickstart</h1><blockquote><p>在没有使用独立界面的 Sentinel 使用</p></blockquote><h2 id="1、-引入相关依赖"><a href="#1、-引入相关依赖" class="headerlink" title="1、 引入相关依赖"></a>1、 引入相关依赖</h2><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>com.alibaba.csp<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>sentinel-core<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>1.8.0<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>com.alibaba.csp<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>sentinel-annotation-aspectj<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>1.8.0<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span></code></pre><h2 id="2-增加-Sentinel-配置"><a href="#2-增加-Sentinel-配置" class="headerlink" title="2. 增加 Sentinel 配置"></a>2. 增加 Sentinel 配置</h2><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.demo.config;<span class="hljs-keyword">import</span> com.alibaba.csp.sentinel.annotation.aspectj.SentinelResourceAspect;<span class="hljs-keyword">import</span> org.springframework.context.annotation.Bean;<span class="hljs-keyword">import</span> org.springframework.context.annotation.Configuration;<span class="hljs-comment">/**</span><span class="hljs-comment"> * <span class="hljs-doctag">@description</span>:</span><span class="hljs-comment"> * <span class="hljs-doctag">@author</span>: lucas</span><span class="hljs-comment"> * <span class="hljs-doctag">@date</span>: 2022/6/24</span><span class="hljs-comment"> * <span class="hljs-doctag">@since</span>: this is write current version</span><span class="hljs-comment"> */</span><span class="hljs-meta">@Configuration</span><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">SentinelConfig</span> </span>&#123;    <span class="hljs-meta">@Bean</span>    <span class="hljs-function"><span class="hljs-keyword">public</span> SentinelResourceAspect <span class="hljs-title">sentinelResourceAspect</span><span class="hljs-params">()</span> </span>&#123;        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> SentinelResourceAspect();    &#125;&#125;</code></pre><h2 id="3-创建规则"><a href="#3-创建规则" class="headerlink" title="3. 创建规则"></a>3. 创建规则</h2><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.demo.core;<span class="hljs-keyword">import</span> com.alibaba.csp.sentinel.slots.block.degrade.DegradeRule;<span class="hljs-keyword">import</span> com.alibaba.csp.sentinel.slots.block.degrade.DegradeRuleManager;<span class="hljs-keyword">import</span> com.alibaba.csp.sentinel.slots.block.degrade.circuitbreaker.CircuitBreaker;<span class="hljs-keyword">import</span> com.alibaba.csp.sentinel.slots.block.degrade.circuitbreaker.CircuitBreakerStrategy;<span class="hljs-keyword">import</span> com.alibaba.csp.sentinel.slots.block.degrade.circuitbreaker.EventObserverRegistry;<span class="hljs-keyword">import</span> com.alibaba.csp.sentinel.util.TimeUtil;<span class="hljs-keyword">import</span> lombok.extern.slf4j.Slf4j;<span class="hljs-keyword">import</span> org.springframework.stereotype.Component;<span class="hljs-keyword">import</span> javax.annotation.PostConstruct;<span class="hljs-keyword">import</span> java.util.ArrayList;<span class="hljs-keyword">import</span> java.util.List;<span class="hljs-comment">/**</span><span class="hljs-comment"> * <span class="hljs-doctag">@description</span>:</span><span class="hljs-comment"> * <span class="hljs-doctag">@author</span>: lucas</span><span class="hljs-comment"> * <span class="hljs-doctag">@date</span>: 2022/6/24</span><span class="hljs-comment"> * <span class="hljs-doctag">@since</span>: this is write current version</span><span class="hljs-comment"> */</span><span class="hljs-meta">@Slf4j</span><span class="hljs-meta">@Component</span><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">Rule</span> </span>&#123;    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> String key = <span class="hljs-string">&quot;lucas&quot;</span>;    <span class="hljs-meta">@PostConstruct</span>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">init</span><span class="hljs-params">()</span> </span>&#123;        log.info(<span class="hljs-string">&quot;rule init...&quot;</span>);        <span class="hljs-keyword">this</span>.rule();    &#125;    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">rule</span><span class="hljs-params">()</span> </span>&#123;        List&lt;DegradeRule&gt; degradeRules = <span class="hljs-keyword">new</span> ArrayList&lt;&gt;();        DegradeRule degradeRule = <span class="hljs-keyword">new</span> DegradeRule(key)                .setCount(<span class="hljs-number">5</span>)                .setTimeWindow(<span class="hljs-number">30</span>)                .setStatIntervalMs(<span class="hljs-number">60000</span>)                .setGrade(CircuitBreakerStrategy.ERROR_COUNT.getType());        degradeRules.add(degradeRule);        DegradeRuleManager.loadRules(degradeRules);        registerStateChangeObserver();    &#125;    <span class="hljs-function"><span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title">registerStateChangeObserver</span><span class="hljs-params">()</span> </span>&#123;        EventObserverRegistry.getInstance().addStateChangeObserver(<span class="hljs-string">&quot;logging&quot;</span>, (prevState, newState, rule, snapshotValue) -&gt;&#123;            log.info(rule.toString());            <span class="hljs-keyword">if</span> (CircuitBreaker.State.OPEN == newState) &#123;                log.info(<span class="hljs-string">&quot;&#123;&#125; -&gt; OPEN at &#123;&#125; snapshotValue = &#123;&#125;&quot;</span>, prevState, TimeUtil.currentTimeMillis(), snapshotValue);            &#125; <span class="hljs-keyword">else</span> &#123;                log.info(<span class="hljs-string">&quot;&#123;&#125; -&gt; &#123;&#125; at &#123;&#125; snapshotValue = &#123;&#125;&quot;</span>, prevState, newState, TimeUtil.currentTimeMillis(), snapshotValue);            &#125;        &#125;);    &#125;&#125;</code></pre><h2 id="4-逻辑处理"><a href="#4-逻辑处理" class="headerlink" title="4. 逻辑处理"></a>4. 逻辑处理</h2><blockquote><p>在对应方法上增加注解<code>@SentinelResource</code><br>在方法内通过 <code>SphU</code> <code>Tracer.traceEntry(exception, entry);</code>进行打点</p></blockquote><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.demo.service;<span class="hljs-keyword">import</span> com.alibaba.csp.sentinel.Entry;<span class="hljs-keyword">import</span> com.alibaba.csp.sentinel.SphU;<span class="hljs-keyword">import</span> com.alibaba.csp.sentinel.Tracer;<span class="hljs-keyword">import</span> com.alibaba.csp.sentinel.annotation.SentinelResource;<span class="hljs-keyword">import</span> com.alibaba.csp.sentinel.slots.block.BlockException;<span class="hljs-keyword">import</span> com.demo.core.Rule;<span class="hljs-keyword">import</span> org.springframework.stereotype.Service;<span class="hljs-keyword">import</span> java.util.Objects;<span class="hljs-comment">/**</span><span class="hljs-comment"> * <span class="hljs-doctag">@description</span>:</span><span class="hljs-comment"> * <span class="hljs-doctag">@author</span>: lucas</span><span class="hljs-comment"> * <span class="hljs-doctag">@date</span>: 2022/6/24</span><span class="hljs-comment"> * <span class="hljs-doctag">@since</span>: this is write current version</span><span class="hljs-comment"> */</span><span class="hljs-meta">@Service(&quot;sentinelService&quot;)</span><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">SentinelService</span> </span>&#123;    <span class="hljs-meta">@SentinelResource(value = Rule.key, blockHandler = &quot;defaultFallback&quot;)</span>    <span class="hljs-function"><span class="hljs-keyword">public</span> String <span class="hljs-title">helloAnother</span><span class="hljs-params">(String name)</span> </span>&#123;        Entry entry = <span class="hljs-keyword">null</span>;        <span class="hljs-keyword">try</span> &#123;            entry = SphU.entry(Rule.key);            <span class="hljs-keyword">int</span> i = <span class="hljs-number">1</span>/<span class="hljs-number">0</span>;        &#125; <span class="hljs-keyword">catch</span> (Exception exception) &#123;            <span class="hljs-keyword">if</span> (!BlockException.isBlockException(exception)) &#123;                Tracer.traceEntry(exception, entry);            &#125;        &#125; <span class="hljs-keyword">finally</span> &#123;            <span class="hljs-keyword">if</span> (Objects.nonNull(entry)) entry.exit();        &#125;        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;Hello, &quot;</span> + name;    &#125;    <span class="hljs-function"><span class="hljs-keyword">public</span> String <span class="hljs-title">defaultFallback</span><span class="hljs-params">(String name,</span></span><span class="hljs-function"><span class="hljs-params">                                  BlockException blockException)</span> </span>&#123;        System.out.println(<span class="hljs-string">&quot;Go to default fallback&quot;</span>);        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;default_fallback&quot;</span>;    &#125;&#125;</code></pre><h2 id="6、请求打印，请求5次"><a href="#6、请求打印，请求5次" class="headerlink" title="6、请求打印，请求5次"></a>6、请求打印，请求5次</h2><pre><code class="hljs text">2022-06-24 18:14:03.658  INFO 39773 --- [nio-9090-exec-1] com.demo.controller.SentinelController   : Hello, bad2022-06-24 18:14:06.027  INFO 39773 --- [nio-9090-exec-2] com.demo.controller.SentinelController   : Hello, bad2022-06-24 18:14:06.172  INFO 39773 --- [nio-9090-exec-3] com.demo.controller.SentinelController   : Hello, bad2022-06-24 18:14:06.335  INFO 39773 --- [nio-9090-exec-4] com.demo.controller.SentinelController   : Hello, bad2022-06-24 18:14:06.498  INFO 39773 --- [nio-9090-exec-5] com.demo.controller.SentinelController   : Hello, bad2022-06-24 18:14:06.671  INFO 39773 --- [nio-9090-exec-6] com.demo.core.Rule                       : DegradeRule&#123;resource=lucas, grade=2, count=5.0, limitApp=default, timeWindow=30, minRequestAmount=5, slowRatioThreshold=1.0, statIntervalMs=60000&#125;2022-06-24 18:14:06.671  INFO 39773 --- [nio-9090-exec-6] com.demo.core.Rule                       : CLOSED -&gt; OPEN at 1656065646671 snapshotValue = 6.02022-06-24 18:14:06.673  INFO 39773 --- [nio-9090-exec-6] com.demo.controller.SentinelController   : Hello, badGo to default fallback2022-06-24 18:14:06.979  INFO 39773 --- [nio-9090-exec-7] com.demo.controller.SentinelController   : default_fallback</code></pre>]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>Java,sentinel,Spring,Linux,annotation</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>有ui界面的Sentinel Quickstart</title>
+    <link href="/2022/07/15/mideware/sentinel/ui_quickstart/"/>
+    <url>/2022/07/15/mideware/sentinel/ui_quickstart/</url>
+    
+    <content type="html"><![CDATA[]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>Java,sentinel,Spring,Linux,annotation</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>SkyWalking-Java Agent 编译指南</title>
+    <link href="/2022/07/14/mideware/skywalking/SkyWalking-Java%20Agent%20%E7%BC%96%E8%AF%91%E6%8C%87%E5%8D%97/"/>
+    <url>/2022/07/14/mideware/skywalking/SkyWalking-Java%20Agent%20%E7%BC%96%E8%AF%91%E6%8C%87%E5%8D%97/</url>
+    
+    <content type="html"><![CDATA[<h1 id="SkyWalking-Java-Agent-编译指南"><a href="#SkyWalking-Java-Agent-编译指南" class="headerlink" title="SkyWalking-Java Agent 编译指南"></a>SkyWalking-Java Agent 编译指南</h1><ol><li><p>第一步下载源码（通过git clone方式）</p><pre><code class="hljs shel">git clone git@github.com:apache&#x2F;skywalking-java.gitcd skywalking-javagit submodule initgit submodule update</code></pre><p>或者直接传递<code>--recurse-submodules</code>参数</p><pre><code class="hljs shell">git clone --recurse-submodules git@github.com:apache/skywalking-java.git</code></pre><blockquote><p>没有了解过<code>git submodule</code>点击这里查看 <a href="http://git-scm.com/book/zh/v2/Git-%E5%B7%A5%E5%85%B7-%E5%AD%90%E6%A8%A1%E5%9D%97">查看</a></p></blockquote></li><li><p>在 IntelliJ IDEA Terminal 中，进入skywalking-java目录</p></li><li><p>Maven进行编译</p><pre><code class="hljs shell">mvn clean compile -Dmaven.test.skip=true</code></pre></li></ol><ol start="4"><li><p>设置 gRPC 的<strong>自动生成</strong>的代码目录，为<strong>源码</strong>目录 ：</p><ul><li>/apm-network/target/generated-sources/protobuf/ 下的 <code>grpc-java</code> 和 <code>java</code> 目录</li></ul></li></ol><p><img src="/images/sw/1.png" alt="image-20220521231409950"></p><p><img src="/images/sw/image-20220521231531897.png" alt="image-20220521231531897"></p><p>最新版本的skywalking-java 要配合<a href="https://github.com/apache">apache</a>/<strong><a href="https://github.com/apache/skywalking-data-collect-protocol">skywalking-data-collect-protocol</a></strong> 至少是9.0.0才可以。</p><p>打包</p><pre><code class="hljs she">mvn package -Dmaven.test.skip&#x3D;true</code></pre><p><img src="/images/sw/image-20220522002708218.png" alt="image-20220522002708218"></p><h2 id="在IDEA启动一个SpringBoot-Web项目"><a href="#在IDEA启动一个SpringBoot-Web项目" class="headerlink" title="在IDEA启动一个SpringBoot Web项目"></a>在IDEA启动一个SpringBoot Web项目</h2><h3 id="增加JVM参数"><a href="#增加JVM参数" class="headerlink" title="增加JVM参数"></a>增加JVM参数</h3><pre><code class="hljs awk">-javaagent:<span class="hljs-regexp">/Users/</span>lucas<span class="hljs-regexp">/tal/gi</span>thub<span class="hljs-regexp">/skywalking-java/</span>skywalking-agent/skywalking-agent.jar-Dskywalking.agent.service_name=app-specs-Dskywalking.collector.backend_service=<span class="hljs-number">192.168</span>.<span class="hljs-number">1.9</span>:<span class="hljs-number">11800</span></code></pre><p><img src="/images/sw/image-20220522002859192.png" alt="image-20220522002859192"></p>]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>Java,SkyWalking,Spring,Linux,WuSheng,Agent,Monitor</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>SkyWalking 调试指南</title>
+    <link href="/2022/07/13/mideware/skywalking/SkyWalking%20%E8%B0%83%E8%AF%95%E6%8C%87%E5%8D%97/"/>
+    <url>/2022/07/13/mideware/skywalking/SkyWalking%20%E8%B0%83%E8%AF%95%E6%8C%87%E5%8D%97/</url>
+    
+    <content type="html"><![CDATA[<h1 id="SkyWalking-调试指南"><a href="#SkyWalking-调试指南" class="headerlink" title="SkyWalking 调试指南"></a>SkyWalking 调试指南</h1><p>编译并打包源代码【不会编译的查看这边文档[传送门](./SkyWalking 调试指南.md)】</p>]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>Java,SkyWalking,Spring,Linux,WuSheng</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>SkyWalking 编译指南</title>
+    <link href="/2022/07/12/mideware/skywalking/SkyWalking%20%E7%BC%96%E8%AF%91%E6%8C%87%E5%8D%97/"/>
+    <url>/2022/07/12/mideware/skywalking/SkyWalking%20%E7%BC%96%E8%AF%91%E6%8C%87%E5%8D%97/</url>
+    
+    <content type="html"><![CDATA[<h1 id="SkyWalking-编译指南"><a href="#SkyWalking-编译指南" class="headerlink" title="SkyWalking 编译指南"></a>SkyWalking 编译指南</h1><h2 id="源码下载"><a href="#源码下载" class="headerlink" title="源码下载"></a>源码下载</h2><p>clone git 上的SkyWalking源码</p><p><a href="https://github.com/apache/skywalking">https://github.com/apache/skywalking</a></p><pre><code class="hljs shell">git clone git@github.com:apache/skywalking.git</code></pre><h2 id="GRPC协议项目源码下载"><a href="#GRPC协议项目源码下载" class="headerlink" title="GRPC协议项目源码下载"></a>GRPC协议项目源码下载</h2><p>进入目录，clone grpc 协议源码</p><pre><code class="hljs shell">git clone git@github.com:apache/skywalking-data-collect-protocol.git</code></pre><blockquote><p>关于该问题的相关issues：<a href="https://github.com/apache/skywalking/issues/4864">https://github.com/apache/skywalking/issues/4864</a></p></blockquote><pre><code class="hljs text">这个问题是因为SkyWalking项目中的 network模块中的proto里面的文件都单独存放到另一个项目中了，单独clone 或者下载SkyWalking的源码是不可以的，需要把对应 apache/skywalking-data-collect-protocol 项目clone或者下载到 skywalking/apm-protocol/apm-network/src/main/proto 目录中，就可以了</code></pre><p>前端源码下载</p><pre><code class="hljs shell">cd skywalking/skywalking-uigit clone git@github.com:apache/skywalking-rocketbot-ui.git</code></pre><blockquote><p>下载到对应目录下面， 如果不下载会出现 编译过程中会出现无法正常执行npm 等编译并发布前端的问题</p></blockquote><h2 id="编译"><a href="#编译" class="headerlink" title="编译"></a>编译</h2><p>编译命令</p><pre><code class="hljs she">mvn clean compile -Dmaven.test.skip&#x3D;true</code></pre><p>编译时一个  long long time 的事情，一直等待..</p><blockquote><p> 如果可以更换下网络可以快一些</p></blockquote><p>编译成功会显示</p><pre><code class="hljs she">&#96;&#96;&#96;编译成功后这个GRPC文件显示这样的icon![image-20220521224645836](&#x2F;Users&#x2F;lucas&#x2F;Documents&#x2F;skywalking-docs&#x2F;img&#x2F;image-20220521224645836.png)执行Maven命令打包&#96;&#96;&#96;shelmvn clean package -Pagent &#x2F;&#x2F;只处理 javaAgent部分，这在调试Agent的时候就减少许多时间mvn package -Pbackend,dist&#x2F;&#x2F;只处理OapServer并打包压缩mvn package -Pui,dist&#x2F;&#x2F;只处理UI并打包压缩mvn package -Pagent,dist&#x2F;&#x2F;只处理 javaAgent 并打包压缩</code></pre>]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>Java,SkyWalking,Spring,Linux,WuSheng</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>SkyWalking 数据存储在es的每一个索引的含义</title>
+    <link href="/2022/07/11/mideware/skywalking/es_index/"/>
+    <url>/2022/07/11/mideware/skywalking/es_index/</url>
+    
+    <content type="html"><![CDATA[<h1 id="SkyWalking-数据存储在es的每一个索引的含义"><a href="#SkyWalking-数据存储在es的每一个索引的含义" class="headerlink" title="SkyWalking 数据存储在es的每一个索引的含义"></a>SkyWalking 数据存储在es的每一个索引的含义</h1><h2 id="andotorg-instance-traffic-20220629"><a href="#andotorg-instance-traffic-20220629" class="headerlink" title="andotorg_instance_traffic-20220629"></a>andotorg_instance_traffic-20220629</h2><blockquote><p>该索引存储的是所有service保存的实例</p></blockquote><h3 id="存储数据示例"><a href="#存储数据示例" class="headerlink" title="存储数据示例"></a>存储数据示例</h3><pre><code class="hljs json">&#123;        <span class="hljs-attr">&quot;_index&quot;</span> : <span class="hljs-string">&quot;andotorg_instance_traffic-20220629&quot;</span>,        <span class="hljs-attr">&quot;_type&quot;</span> : <span class="hljs-string">&quot;type&quot;</span>,        <span class="hljs-attr">&quot;_id&quot;</span> : <span class="hljs-string">&quot;23.23&quot;</span>,        <span class="hljs-attr">&quot;_score&quot;</span> : <span class="hljs-number">1.0</span>,        <span class="hljs-attr">&quot;_source&quot;</span> : &#123;          <span class="hljs-attr">&quot;bcy_timestamp&quot;</span> : <span class="hljs-string">&quot;2022-06-29T02:26:57.109845Z&quot;</span>,          <span class="hljs-attr">&quot;last_ping&quot;</span> : <span class="hljs-number">202206290230</span>,          <span class="hljs-attr">&quot;service_id&quot;</span> : <span class="hljs-string">&quot;dsd.1&quot;</span>,          <span class="hljs-attr">&quot;name&quot;</span> : <span class="hljs-string">&quot;sdsdsd@1.1.1.1&quot;</span>,          <span class="hljs-attr">&quot;time_bucket&quot;</span> : <span class="hljs-number">202206290226</span>,          <span class="hljs-attr">&quot;properties&quot;</span> : <span class="hljs-string">&quot;&quot;</span>        &#125;      &#125;</code></pre><h2 id="andotorg-segment-20220629"><a href="#andotorg-segment-20220629" class="headerlink" title="andotorg_segment-20220629"></a>andotorg_segment-20220629</h2><blockquote><p>该索引存储的是所有请求链接对应数据</p></blockquote><pre><code class="hljs json">GET /andotorg_segment-20220629/_search&#123;  <span class="hljs-attr">&quot;query&quot;</span>: &#123;    <span class="hljs-attr">&quot;bool&quot;</span>: &#123;      <span class="hljs-attr">&quot;must&quot;</span>: [        &#123;<span class="hljs-attr">&quot;range&quot;</span>: &#123;          <span class="hljs-attr">&quot;time_bucket&quot;</span>: &#123;            <span class="hljs-attr">&quot;gte&quot;</span>: <span class="hljs-number">20220629120350</span>,            <span class="hljs-attr">&quot;lte&quot;</span>: <span class="hljs-number">20220629130350</span>          &#125;        &#125;&#125;      ]    &#125;  &#125;,   <span class="hljs-attr">&quot;sort&quot;</span>: [    &#123;      <span class="hljs-attr">&quot;end_time&quot;</span>: &#123;        <span class="hljs-attr">&quot;order&quot;</span>: <span class="hljs-string">&quot;desc&quot;</span>      &#125;    &#125;  ]&#125;</code></pre><h2 id="andotorg-metrics-doubleavg-20220519"><a href="#andotorg-metrics-doubleavg-20220519" class="headerlink" title="andotorg_metrics-doubleavg-20220519"></a>andotorg_metrics-doubleavg-20220519</h2><h2 id="andotorg-service-instance-relation-client-side-20220519"><a href="#andotorg-service-instance-relation-client-side-20220519" class="headerlink" title="andotorg_service_instance_relation_client_side-20220519"></a>andotorg_service_instance_relation_client_side-20220519</h2><h2 id="andotorg-profile-task-20220519"><a href="#andotorg-profile-task-20220519" class="headerlink" title="andotorg_profile_task-20220519"></a>andotorg_profile_task-20220519</h2><h2 id="andotorg-profile-task-segment-snapshot-20220519"><a href="#andotorg-profile-task-segment-snapshot-20220519" class="headerlink" title="andotorg_profile_task_segment_snapshot-20220519"></a>andotorg_profile_task_segment_snapshot-20220519</h2><h2 id="andotorg-profile-task-log-20220519"><a href="#andotorg-profile-task-log-20220519" class="headerlink" title="andotorg_profile_task_log-20220519"></a>andotorg_profile_task_log-20220519</h2><h2 id="andotorg-log-20220519"><a href="#andotorg-log-20220519" class="headerlink" title="andotorg_log-20220519"></a>andotorg_log-20220519</h2><blockquote><p>通过GRPC appender 上报的日志数据</p></blockquote><h2 id="andotorg-events-20220629"><a href="#andotorg-events-20220629" class="headerlink" title="andotorg_events-20220629"></a>andotorg_events-20220629</h2><h2 id="andotorg-endpoint-relation-server-side-20220629"><a href="#andotorg-endpoint-relation-server-side-20220629" class="headerlink" title="andotorg_endpoint_relation_server_side-20220629"></a>andotorg_endpoint_relation_server_side-20220629</h2><h2 id="andotorg-service-instance-relation-client-side-20220629"><a href="#andotorg-service-instance-relation-client-side-20220629" class="headerlink" title="andotorg_service_instance_relation_client_side-20220629"></a>andotorg_service_instance_relation_client_side-20220629</h2><h2 id="andotorg-network-address-alias-20220701"><a href="#andotorg-network-address-alias-20220701" class="headerlink" title="andotorg_network_address_alias-20220701"></a>andotorg_network_address_alias-20220701</h2><blockquote><p>存储的网络地址，有address是存储的全量的service的名称</p></blockquote><h2 id="andotorg-browser-error-log-20220629"><a href="#andotorg-browser-error-log-20220629" class="headerlink" title="andotorg_browser_error_log-20220629"></a>andotorg_browser_error_log-20220629</h2><blockquote><p>存储的是前端收集的错误信息</p></blockquote><h2 id="andotorg-alarm-record-20220629"><a href="#andotorg-alarm-record-20220629" class="headerlink" title="andotorg_alarm_record-20220629"></a>andotorg_alarm_record-20220629</h2><blockquote><p>告警记录表</p></blockquote>]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>Java,SkyWalking,Spring,Linux,WuSheng,Agent,Monitor,ElasticSearch</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>CAP 分布式一致性</title>
+    <link href="/2022/07/10/protocol/distributed/cap/"/>
+    <url>/2022/07/10/protocol/distributed/cap/</url>
+    
+    <content type="html"><![CDATA[<h1 id="CAP-分布式一致性"><a href="#CAP-分布式一致性" class="headerlink" title="CAP 分布式一致性"></a>CAP 分布式一致性</h1><blockquote><p>CAP是分布式协议</p></blockquote>]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>Java,CAP,Spring,微服务</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>协议</title>
+    <link href="/2022/07/10/protocol/distributed/protocol/"/>
+    <url>/2022/07/10/protocol/distributed/protocol/</url>
+    
+    <content type="html"><![CDATA[<h1 id="TCP"><a href="#TCP" class="headerlink" title="TCP"></a>TCP</h1>]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>Java,CAP,协议,protocol,grpc,http</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>PlantUML in Mac使用问题解决</title>
+    <link href="/2022/07/08/tool/plantuml/index/"/>
+    <url>/2022/07/08/tool/plantuml/index/</url>
+    
+    <content type="html"><![CDATA[<h1 id="PlantUML-in-Mac使用问题解决"><a href="#PlantUML-in-Mac使用问题解决" class="headerlink" title="PlantUML in Mac使用问题解决"></a>PlantUML in Mac使用问题解决</h1><p><img src="./img/error.png"></p><h2 id="解决"><a href="#解决" class="headerlink" title="解决"></a>解决</h2><blockquote><p>先下载 Graphviz，然后查看 dot 是否安装成功</p></blockquote><h3 id="macos"><a href="#macos" class="headerlink" title="macos"></a>macos</h3><pre><code class="hljs shell">brew install Graphvizdot -version</code></pre><p>然后把 dot二进制可执行文件 复制到 plantUML查找dot的位置<br>(好像不能从idea里配置。。。</p><pre><code class="hljs shell">sudo mkdir -p /opt/local/binsudo cp /opt/homebrew/Cellar/graphviz/2.49.3/bin/dot /opt/local/bin</code></pre>]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>Java,Spring,微服务,PlantUML</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>Istio协议设置的几种方式</title>
+    <link href="/2022/07/03/mideware/istio/istio%E5%8D%8F%E8%AE%AE%E8%AE%BE%E7%BD%AE%E7%9A%84%E5%87%A0%E7%A7%8D%E6%96%B9%E5%BC%8F/"/>
+    <url>/2022/07/03/mideware/istio/istio%E5%8D%8F%E8%AE%AE%E8%AE%BE%E7%BD%AE%E7%9A%84%E5%87%A0%E7%A7%8D%E6%96%B9%E5%BC%8F/</url>
+    
+    <content type="html"><![CDATA[<h1 id="Istio协议设置的几种方式"><a href="#Istio协议设置的几种方式" class="headerlink" title="Istio协议设置的几种方式"></a>Istio协议设置的几种方式</h1><h2 id="手动设置"><a href="#手动设置" class="headerlink" title="手动设置"></a>手动设置</h2><p>service name</p>]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>Java,SpringBoot,Spring,Linux,Istio,Kubernates,MicroService</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>CentOS 设置开机启动Redis</title>
+    <link href="/2022/07/02/mideware/redis/centos_startup_redis/"/>
+    <url>/2022/07/02/mideware/redis/centos_startup_redis/</url>
+    
+    <content type="html"><![CDATA[<h1 id="CentOS-设置开机启动Redis"><a href="#CentOS-设置开机启动Redis" class="headerlink" title="CentOS 设置开机启动Redis"></a>CentOS 设置开机启动Redis</h1><h2 id="创建相关用户，并设置权限"><a href="#创建相关用户，并设置权限" class="headerlink" title="创建相关用户，并设置权限"></a>创建相关用户，并设置权限</h2><pre><code class="hljs shell">sudo gropdadd redissudo useradd -g redis redis --no-create-homesudo chown -R redis:redis /usr/local/redis</code></pre><blockquote><p>用户如果创建成功</p></blockquote><h2 id="创建文件，并书写脚本"><a href="#创建文件，并书写脚本" class="headerlink" title="创建文件，并书写脚本"></a>创建文件，并书写脚本</h2><pre><code class="hljs shell">vim /etc/systemd/system/redis-server.service[Unit]Description=Redis Server ManagerAfter=syslog.targetAfter=network.target[Service]Type=simpleUser=redisGroup=redisPIDFile=/var/run/redis_6379.pidExecStart=/usr/local/redis-5.0.14/src/redis-server /usr/local/redis-5.0.14/redis.confExecStop=/usr/local/redis-5.0.14/src/redis-cli shutdownRestart=always[Install]WantedBy=multi-user.target</code></pre><blockquote><p>如果用户没有创建成功</p></blockquote><h2 id="root用户启动脚本"><a href="#root用户启动脚本" class="headerlink" title="root用户启动脚本"></a>root用户启动脚本</h2><pre><code class="hljs shell">vim /etc/systemd/system/redis-server.service[Unit]Description=Redis Server ManagerAfter=syslog.targetAfter=network.target[Service]Type=simpleUser=rootGroup=rootPIDFile=/var/run/redis_6379.pidExecStart=/usr/local/redis-5.0.14/src/redis-server /usr/local/redis-5.0.14/redis.confExecStop=/usr/local/redis-5.0.14/src/redis-cli shutdownRestart=always[Install]WantedBy=multi-user.target</code></pre><h2 id="设置开机启动"><a href="#设置开机启动" class="headerlink" title="设置开机启动"></a>设置开机启动</h2><pre><code class="hljs shell">systemctl daemon-reload systemctl start redis-server.service systemctl enable redis-server.service</code></pre><h2 id="创建redis-cli软连接"><a href="#创建redis-cli软连接" class="headerlink" title="创建redis-cli软连接"></a>创建redis-cli软连接</h2><pre><code class="hljs shell">ln -s /usr/local/redis/redis-cli /usr/bin/redis-cli</code></pre>]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>Java,CentOS,Spring,Linux,Redis</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>CentOS 设置开机启动Redis</title>
+    <link href="/2022/07/01/mideware/redis/install/"/>
+    <url>/2022/07/01/mideware/redis/install/</url>
+    
+    <content type="html"><![CDATA[<h1 id="CentOS-安装Redis"><a href="#CentOS-安装Redis" class="headerlink" title="CentOS 安装Redis"></a>CentOS 安装Redis</h1><h2 id="首先下载redis源码，并使用tar进行解压缩"><a href="#首先下载redis源码，并使用tar进行解压缩" class="headerlink" title="首先下载redis源码，并使用tar进行解压缩"></a>首先下载redis源码，并使用tar进行解压缩</h2><pre><code class="hljs shell">wget http://download.redis.io/releases/redis-5.0.14.tar.gztar xvzf redis-5.0.14.tar.gz</code></pre><h2 id="使用gcc进行编译"><a href="#使用gcc进行编译" class="headerlink" title="使用gcc进行编译"></a>使用gcc进行编译</h2><pre><code class="hljs shell">makemake test</code></pre><h2 id="编译后的可执行文件在-usr-local-redis-5-0-14-src目录下"><a href="#编译后的可执行文件在-usr-local-redis-5-0-14-src目录下" class="headerlink" title="编译后的可执行文件在/usr/local/redis-5.0.14/src目录下"></a>编译后的可执行文件在/usr/local/redis-5.0.14/src目录下</h2>]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>Java,CentOS,Spring,Linux,Redis</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>MySQL分区可行性调研</title>
+    <link href="/2021/11/17/database/mysql/mysql_partition_research/"/>
+    <url>/2021/11/17/database/mysql/mysql_partition_research/</url>
+    
+    <content type="html"><![CDATA[<h1 id="MySQL分区可行性调研"><a href="#MySQL分区可行性调研" class="headerlink" title="MySQL分区可行性调研"></a>MySQL分区可行性调研</h1><h2 id="一、什么是分区"><a href="#一、什么是分区" class="headerlink" title="一、什么是分区"></a>一、什么是分区</h2><h3 id="1、MySQL存储原理"><a href="#1、MySQL存储原理" class="headerlink" title="1、MySQL存储原理"></a>1、MySQL存储原理</h3><p>MySQL是支持ACID事务的，其中一个D就是持久化，持久化就代表了：插入MySQL的数据最终还是要落到磁盘中，这样才能做到真正的持久化。</p><p>MySQL存储文件在磁盘中，每一个数据库里面有很多存储文件：</p><p>针对InnoDB引擎来说</p><p>数据库配置信息文件（.opt）</p><p>表元数据文件（.frm）、表数据文件（ibd）；</p><h4 id="opt文件"><a href="#opt文件" class="headerlink" title=".opt文件"></a>.opt文件</h4><p>包含数据库配置信息的文件。</p><h4 id="frm-文件"><a href="#frm-文件" class="headerlink" title=".frm 文件"></a>.frm 文件</h4><p>包含元数据的文件，例如 MySQL 表的表定义。</p><p>对于备份，您必须始终将完整的.frm文件集与备份数据一起保留 ，以便能够恢复备份后更改或删除的表。</p><p>尽管每个InnoDB表都有一个 .frm文件，InnoDB 但在系统表空间中维护自己的表元数据 。</p><h4 id="ibd文件"><a href="#ibd文件" class="headerlink" title=".ibd文件"></a>.ibd文件</h4><p>保存了数据库的数据信息和关联索引信息。</p><p>file-per-table 表空间和通用表空间 的数据文件 。File-per-table 表空间 .ibd文件包含单个表和关联的索引数据。通用表空间 .ibd文件可能包含多个表的表和索引数据。MySQL 5.7.6 中引入了通用表空间。</p><p>该.ibd文件的扩展名不适用于 系统表空间，它由一个或多个ibdata文件。<br>如果使用该DATA DIRECTORY =子句创建 file-per-table 表空间或通用表空间，则该 .ibd文件位于指定路径，在正常数据目录之外，并由.isl 文件指向 。<br>​</p><p><img src="/images/mysql/partition/index.png"></p><h3 id="2、MySQL分区原理"><a href="#2、MySQL分区原理" class="headerlink" title="2、MySQL分区原理"></a>2、MySQL分区原理</h3><p>官方详细文档：<a href="https://dev.mysql.com/doc/refman/5.7/en/partitioning.html">https://dev.mysql.com/doc/refman/5.7/en/partitioning.html</a><br>从 MySQL 5.7.17 开始，MySQL 服务器中的通用分区处理程序已弃用，并在 MySQL 8.0 中删除，因为用于给定表的存储引擎预计会提供自己的（“本机”）分区处理程序。目前，只有InnoDB和 NDB存储引擎可以做到这一点。</p><p>要准备迁移到 MySQL 8.0，任何具有非本机分区的表都应更改为使用提供本机分区的引擎，或者设为非分区。例如，要将表更改为InnoDB，请执行以下语句：</p><pre><code class="hljs sql"><span class="hljs-keyword">ALTER</span> <span class="hljs-keyword">TABLE</span> table_name <span class="hljs-keyword">ENGINE</span> = <span class="hljs-keyword">INNODB</span>;</code></pre><p>设置分区之后会在磁盘中产生用#分隔开的独立的分区文件</p><p>还有独立一个文件为pre的分区信息表，类似磁盘分区的一个mbr分区文件</p><p>分区键的数据类型。 分区键必须是整数列或解析为整数的表达式。ENUM不能使用使用列的表达式 。列或表达式值也可能是NULL. </p><p>最大分区数。  不使用NDB存储引擎的给定表的最大可能分区数是 8192。这个数字包括子分区。</p><h4 id="2-1、分区类型"><a href="#2-1、分区类型" class="headerlink" title="2.1、分区类型"></a>2.1、分区类型</h4><h5 id="2-1-1、-范围划分"><a href="#2-1-1、-范围划分" class="headerlink" title="2.1.1、 范围划分"></a>2.1.1、 范围划分</h5><p>分段划分： 1-10  11-20 数据落在哪个区间，则在哪个分区中。 （是一组连续的区间）<br>分区值为固定值<br>​</p><p><img src="/images/mysql/partition/range.png"></p><h5 id="2-1-2、-LIST-分区"><a href="#2-1-2、-LIST-分区" class="headerlink" title="2.1.2、 LIST 分区"></a>2.1.2、 LIST 分区</h5><p>类似于分区 by RANGE，不同之处在于分区是根据几个离散的值，例如 5 、6 、8 、9是一个分区<br>分区值为固定值<br>​</p><p><img src="/images/mysql/partition/list.png"></p><h4 id="2-1-4、列分区"><a href="#2-1-4、列分区" class="headerlink" title="2.1.4、列分区"></a>2.1.4、列分区</h4><p>所有整数类型：TINYINT、 SMALLINT、 MEDIUMINT、 INT ( INTEGER) 和 BIGINT。<br>DATE和 DATETIME。</p><p>下面的字符串类型： CHAR， VARCHAR， BINARY，和 VARBINARY。</p><p>分区值设置为列名，根据选择列对应的数据进行分区，例如时间分区</p><h5 id="2-1-4-1、RANGE-COLUMNS分区RANGE在以下方面与分区有很大不同"><a href="#2-1-4-1、RANGE-COLUMNS分区RANGE在以下方面与分区有很大不同" class="headerlink" title="2.1.4.1、RANGE COLUMNS分区RANGE在以下方面与分区有很大不同"></a>2.1.4.1、RANGE COLUMNS分区RANGE在以下方面与分区有很大不同</h5><p>① 不接受表达式，只接受列名。</p><p>② 接受一列或多列的列表。</p><p>③ 分区基于 元组（列值列表）之间的比较，而不是标量值之间的比较。</p><p>⑤ 分区列不限于整数列；字符串， DATE并且 DATETIME列也可以作为分区列。</p><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span> table_namePARTITION <span class="hljs-keyword">BY</span> <span class="hljs-keyword">RANGE</span> <span class="hljs-keyword">COLUMNS</span>(column_list) (    <span class="hljs-keyword">PARTITION</span> partition_name <span class="hljs-keyword">VALUES</span> <span class="hljs-keyword">LESS</span> <span class="hljs-keyword">THAN</span> (value_list)[,    <span class="hljs-keyword">PARTITION</span> partition_name <span class="hljs-keyword">VALUES</span> <span class="hljs-keyword">LESS</span> <span class="hljs-keyword">THAN</span> (value_list)][,    ...])</code></pre><h5 id="2-1-4-2、RANGE-COLUMNS分区RANGE在以下方面与分区有很大不同"><a href="#2-1-4-2、RANGE-COLUMNS分区RANGE在以下方面与分区有很大不同" class="headerlink" title="2.1.4.2、RANGE COLUMNS分区RANGE在以下方面与分区有很大不同"></a>2.1.4.2、RANGE COLUMNS分区RANGE在以下方面与分区有很大不同</h5><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span> customers_1 (    first_name <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">25</span>),    last_name <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">25</span>),    street_1 <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">30</span>),    street_2 <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">30</span>),    city <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">15</span>),    renewal <span class="hljs-built_in">DATE</span>)<span class="hljs-keyword">PARTITION</span> <span class="hljs-keyword">BY</span> <span class="hljs-keyword">LIST</span> <span class="hljs-keyword">COLUMNS</span>(city) (    <span class="hljs-keyword">PARTITION</span> pRegion_1 <span class="hljs-keyword">VALUES</span> <span class="hljs-keyword">IN</span>(<span class="hljs-string">&#x27;Oskarshamn&#x27;</span>, <span class="hljs-string">&#x27;Högsby&#x27;</span>, <span class="hljs-string">&#x27;Mönsterås&#x27;</span>),    <span class="hljs-keyword">PARTITION</span> pRegion_2 <span class="hljs-keyword">VALUES</span> <span class="hljs-keyword">IN</span>(<span class="hljs-string">&#x27;Vimmerby&#x27;</span>, <span class="hljs-string">&#x27;Hultsfred&#x27;</span>, <span class="hljs-string">&#x27;Västervik&#x27;</span>),    <span class="hljs-keyword">PARTITION</span> pRegion_3 <span class="hljs-keyword">VALUES</span> <span class="hljs-keyword">IN</span>(<span class="hljs-string">&#x27;Nässjö&#x27;</span>, <span class="hljs-string">&#x27;Eksjö&#x27;</span>, <span class="hljs-string">&#x27;Vetlanda&#x27;</span>),    <span class="hljs-keyword">PARTITION</span> pRegion_4 <span class="hljs-keyword">VALUES</span> <span class="hljs-keyword">IN</span>(<span class="hljs-string">&#x27;Uppvidinge&#x27;</span>, <span class="hljs-string">&#x27;Alvesta&#x27;</span>, <span class="hljs-string">&#x27;Växjo&#x27;</span>));</code></pre><h5 id="2-1-5、-HASH-分区"><a href="#2-1-5、-HASH-分区" class="headerlink" title="2.1.5、 HASH 分区"></a>2.1.5、 HASH 分区</h5><p> 使用这种类型的分区，根据用户定义的表达式返回的值选择分区，该表达式对要插入表的行中的列值进行操作。该函数可以由任何在 MySQL 中有效的表达式组成，该表达式产生一个非负整数值。LINEAR HASH也可以使用此类型的扩展名。<br>​</p><p><img src="/images/mysql/partition/hash.png"></p><h5 id="2-1-6、-KEY分区"><a href="#2-1-6、-KEY分区" class="headerlink" title="2.1.6、 KEY分区"></a>2.1.6、 KEY分区</h5><p>这种类型的分区类似于分区 by HASH，只是只提供了一个或多个要评估的列，并且 MySQL 服务器提供了自己的散列函数。这些列可以包含非整数值，因为 MySQL 提供的散列函数保证整数结果，而不管列数据类型如何。LINEAR KEY也可以使用此类型的扩展名 。<br>​</p><p><img src="/images/mysql/partition/key.png"></p><p>数据库分区的一个非常常见的用途是按日期分隔数据。一些数据库系统支持显式日期分区，MySQL 在 5.7 中没有实现。但是，在 MySQL 中创建基于DATE、 TIME、 或 DATETIME列或基于使用这些列的表达式的分区方案并不困难 。</p><p>按KEY或分区时LINEAR KEY，可以使用DATE、 TIME、 或 DATETIME列作为分区列，而无需对列值进行任何修改。</p><h5 id="2-1-7、-子分区"><a href="#2-1-7、-子分区" class="headerlink" title="2.1.7、 子分区"></a>2.1.7、 子分区</h5><p>类似嵌套分区，每一个分区下面再加一个分区<br>​</p><p><img src="/images/mysql/partition/child.png"></p><h4 id="2-7-MySQL-分区如何处理-NULL"><a href="#2-7-MySQL-分区如何处理-NULL" class="headerlink" title="2.7 MySQL 分区如何处理 NULL"></a>2.7 MySQL 分区如何处理 NULL</h4><p>NULL会被认为比任何值都小的分区里面放置</p><p>具体详细使用方式为：<a href="https://dev.mysql.com/doc/refman/5.7/en/partitioning-handling-nulls.html">https://dev.mysql.com/doc/refman/5.7/en/partitioning-handling-nulls.html</a></p><h2 id="二、分区与分表的区别"><a href="#二、分区与分表的区别" class="headerlink" title="二、分区与分表的区别"></a>二、分区与分表的区别</h2><p>分表：分表是从物理上分开，一张表分为多张表</p><p>分区：分区是从逻辑上分开，一张表还是一张表，只是里面按照固定字段或者设定值来进行分不同的存储区</p><h2 id="三、分区的优点"><a href="#三、分区的优点" class="headerlink" title="三、分区的优点"></a>三、分区的优点</h2><p>1、分区之后，查询只查询单个区，或者几个区，查询数据量总体减少，提高查询性能</p><p>2、分区在逻辑上进行拆分表数据，实际上还是同一张表</p><p>3、分区可以设置多个磁盘进行分区存储，比单个磁盘分区容量更大</p><p>4、插入数据不需要手动的去处理插入哪个表的问题，增删改不需要修改</p><p>5、不需要引入第三方中间件，有效降低开发难度</p><blockquote><p>官方给出优点：</p></blockquote><p>分区使得在一个表中存储的数据比单个磁盘或文件系统分区上存储的数据更多成为可能。<br>通过删除仅包含该数据的分区（或多个分区），通常可以轻松地从分区表中删除失去其用处的数据。相反，在某些情况下，通过添加一个或多个新分区来专门存储该数据，可以极大地促进添加新数据的过程。</p><p>某些查询可以极大地优化，因为满足给定WHERE子句的数据只能存储在一个或多个分区上，这会自动从搜索中排除任何剩余的分区。由于在创建分区表后可以更改分区，因此您可以重新组织数据以增强在首次设置分区方案时可能不经常使用的频繁查询。这种排除不匹配分区（以及它们包含的任何行）的能力通常称为 分区修剪。</p><p>出处：<a href="https://dev.mysql.com/doc/refman/5.7/en/partitioning-overview.html">https://dev.mysql.com/doc/refman/5.7/en/partitioning-overview.html</a></p><h2 id="四、分区的缺点"><a href="#四、分区的缺点" class="headerlink" title="四、分区的缺点"></a>四、分区的缺点</h2><p>1、表可访问性。 有时，服务器 SQL 模式的更改可能会使分区表无法使用。</p><p>2、分区可能在MySQL版本上会有所差异，该问题不可控。</p><p>3、存储引擎。 使用表进行分区操作、查询和更新操作通常MyISAM 比使用InnoDB或 NDB表更快。（对于有事务的表不太适合分区）</p><p>4、全文索引。 分区表不支持FULLTEXT 索引或搜索，即使是使用InnoDB或 MyISAM存储引擎的分区表 。</p><p>5、临时表。 临时表不能分区。</p><p>6、InnoDB外键和 MySQL 分区不兼容。分区 InnoDB表不能有外键引用，也不能有外键引用的列。InnoDB具有或被外键引用的表不能被分区。InnoDB不支持将多个磁盘用于子分区。（目前仅支持此功能 MyISAM。）</p><pre><code>  6.1、InnoDB使用用户定义分区 的表的定义不得包含外键引用；不能InnoDB对定义包含外键引用的表进行分区。 6.2、任何InnoDB表定义都不能包含对用户分区表的外键引用；任何 InnoDB具有用户定义分区的表都不能包含由外键引用的列。</code></pre><p>7、不支持查询缓存。 分区表不支持查询缓存，并且对于涉及分区表的查询会自动禁用。无法为此类查询启用查询缓存。</p>]]></content>
+    
+    
+    <categories>
+      
+      <category>MySQL</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>Java,MySQL,Partition</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>深入分析MySQL replace 与 on duplicate key update 关键词</title>
+    <link href="/2021/10/14/database/mysql/mysql_insert_update/"/>
+    <url>/2021/10/14/database/mysql/mysql_insert_update/</url>
+    
+    <content type="html"><![CDATA[<h1 id="深入分析MySQL-replace-与-on-duplicate-key-update-关键词"><a href="#深入分析MySQL-replace-与-on-duplicate-key-update-关键词" class="headerlink" title="深入分析MySQL replace 与 on duplicate key update 关键词"></a>深入分析MySQL replace 与 on duplicate key update 关键词</h1><h2 id="建立一张数据表"><a href="#建立一张数据表" class="headerlink" title="建立一张数据表"></a>建立一张数据表</h2><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span> <span class="hljs-string">`test`</span>.<span class="hljs-string">`test_unique_key`</span> ( <span class="hljs-string">`id`</span> <span class="hljs-built_in">varchar</span>(<span class="hljs-number">32</span>) <span class="hljs-keyword">NOT</span> <span class="hljs-literal">NULL</span>, <span class="hljs-string">`name`</span> <span class="hljs-built_in">varchar</span>(<span class="hljs-number">255</span>) <span class="hljs-literal">NULL</span>, <span class="hljs-string">`term_id`</span> <span class="hljs-built_in">varchar</span>(<span class="hljs-number">64</span>) <span class="hljs-literal">NULL</span>, <span class="hljs-string">`class_id`</span> <span class="hljs-built_in">varchar</span>(<span class="hljs-number">64</span>) <span class="hljs-literal">NULL</span>, <span class="hljs-string">`course_id`</span> <span class="hljs-built_in">varchar</span>(<span class="hljs-number">64</span>) <span class="hljs-literal">NULL</span>, PRIMARY <span class="hljs-keyword">KEY</span> (<span class="hljs-string">`id`</span>), <span class="hljs-keyword">UNIQUE</span> <span class="hljs-keyword">INDEX</span> <span class="hljs-string">`unique`</span>(<span class="hljs-string">`term_id`</span>, <span class="hljs-string">`class_id`</span>, <span class="hljs-string">`course_id`</span>) <span class="hljs-keyword">USING</span> BTREE);</code></pre><p>查看REPLACE …</p><h2 id="语句执行情况"><a href="#语句执行情况" class="headerlink" title="语句执行情况"></a>语句执行情况</h2><h3 id="1、先测试主键一样，唯一键不一样"><a href="#1、先测试主键一样，唯一键不一样" class="headerlink" title="1、先测试主键一样，唯一键不一样"></a>1、先测试主键一样，唯一键不一样</h3><pre><code class="hljs sql"><span class="hljs-keyword">REPLACE</span> <span class="hljs-keyword">INTO</span> test_unique_key ( <span class="hljs-keyword">id</span>, <span class="hljs-keyword">NAME</span>, term_id, class_id, course_id )<span class="hljs-keyword">VALUES</span>( <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2001&#x27;</span>, <span class="hljs-string">&#x27;您好&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2002&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2003&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2004&#x27;</span>); <span class="hljs-keyword">REPLACE</span> <span class="hljs-keyword">INTO</span> test_unique_key ( <span class="hljs-keyword">id</span>, <span class="hljs-keyword">NAME</span>, term_id, class_id, course_id )<span class="hljs-keyword">VALUES</span>( <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2001&#x27;</span>, <span class="hljs-string">&#x27;您好&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2002&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2003&#x27;</span>, <span class="hljs-literal">NULL</span> ); <span class="hljs-keyword">REPLACE</span> <span class="hljs-keyword">INTO</span> test_unique_key ( <span class="hljs-keyword">id</span>, <span class="hljs-keyword">NAME</span>, term_id, class_id, course_id )<span class="hljs-keyword">VALUES</span>( <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2001&#x27;</span>, <span class="hljs-string">&#x27;您好&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2002&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2003&#x27;</span>, <span class="hljs-literal">NULL</span> );</code></pre><blockquote><p>执行结果，只剩一条数据 （按照主键进行了更新）<br>​</p></blockquote><p><img src="/images/mysql/insertupdate/1.png"></p><h3 id="2、主键不一样，唯一键一样"><a href="#2、主键不一样，唯一键一样" class="headerlink" title="2、主键不一样，唯一键一样"></a>2、主键不一样，唯一键一样</h3><pre><code class="hljs sql"><span class="hljs-keyword">REPLACE</span> <span class="hljs-keyword">INTO</span> test_unique_key ( <span class="hljs-keyword">id</span>, <span class="hljs-keyword">NAME</span>, term_id, class_id, course_id )<span class="hljs-keyword">VALUES</span>( <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2005&#x27;</span>, <span class="hljs-string">&#x27;您好&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2002&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2003&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2004&#x27;</span> );<span class="hljs-keyword">REPLACE</span> <span class="hljs-keyword">INTO</span> test_unique_key ( <span class="hljs-keyword">id</span>, <span class="hljs-keyword">NAME</span>, term_id, class_id, course_id )<span class="hljs-keyword">VALUES</span>( <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2006&#x27;</span>, <span class="hljs-string">&#x27;您好&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2002&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2003&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2004&#x27;</span> );</code></pre><blockquote><p>由此看出，主键不一样，执行两次，最终剩余一条数据，所以是按照唯一键更新<br>​</p></blockquote><p><img src="/images/mysql/insertupdate/3.png"></p><h3 id="3、所以说明"><a href="#3、所以说明" class="headerlink" title="3、所以说明"></a>3、所以说明</h3><p>在主键相同唯一键不同时，则使用主键更新，唯一键相同主键不同时使用唯一键更新<br>如果存在主键和唯一索引，主键和唯一索引有一个相同的则被看做唯一标识，所以官方说明的是或者的关系<br>官方原文说明</p><blockquote><p>except that if an old row in the table has the same value as a new row for a PRIMARY KEY or a UNIQUE index, the old row is deleted before the new row is inserted.</p></blockquote><h3 id="4、语句优点"><a href="#4、语句优点" class="headerlink" title="4、语句优点"></a>4、语句优点</h3><p>书写比较简单，就是把插入语句的insert关键字修改replace即可</p><h3 id="5、语句缺点"><a href="#5、语句缺点" class="headerlink" title="5、语句缺点"></a>5、语句缺点</h3><p>但是replace实现原理为如果找到匹配的，是先删除后重新插入</p><h3 id="6、权限说明"><a href="#6、权限说明" class="headerlink" title="6、权限说明"></a>6、权限说明</h3><p>要使用REPLACE，您必须同时拥有表的INSERT和 DELETE权限。</p><h2 id="再看看INSERT-…-ON-DUPLICATE-KEY-UPDATE-语句"><a href="#再看看INSERT-…-ON-DUPLICATE-KEY-UPDATE-语句" class="headerlink" title="再看看INSERT … ON DUPLICATE KEY UPDATE 语句"></a>再看看INSERT … ON DUPLICATE KEY UPDATE 语句</h2><h3 id="1、主键相同，唯一索引不同"><a href="#1、主键相同，唯一索引不同" class="headerlink" title="1、主键相同，唯一索引不同"></a>1、主键相同，唯一索引不同</h3><pre><code class="hljs sql"><span class="hljs-keyword">INSERT</span> <span class="hljs-keyword">INTO</span> test_unique_key ( <span class="hljs-string">`id`</span>, <span class="hljs-string">`NAME`</span>, <span class="hljs-string">`term_id`</span>, <span class="hljs-string">`class_id`</span>, <span class="hljs-string">`course_id`</span> )<span class="hljs-keyword">VALUES</span> ( <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2011&#x27;</span>, <span class="hljs-string">&#x27;您好Duplicate&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2012&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c20010&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2011&#x27;</span> ) <span class="hljs-keyword">ON</span> <span class="hljs-keyword">DUPLICATE</span> <span class="hljs-keyword">KEY</span> <span class="hljs-keyword">UPDATE</span> <span class="hljs-keyword">name</span> = <span class="hljs-string">&#x27;张三&#x27;</span><span class="hljs-comment">-- 第二次执行，主键相同</span><span class="hljs-keyword">INSERT</span> <span class="hljs-keyword">INTO</span> test_unique_key ( <span class="hljs-string">`id`</span>, <span class="hljs-string">`NAME`</span>, <span class="hljs-string">`term_id`</span>, <span class="hljs-string">`class_id`</span>, <span class="hljs-string">`course_id`</span> )<span class="hljs-keyword">VALUES</span> ( <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2011&#x27;</span>, <span class="hljs-string">&#x27;您好Duplicate&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2012&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c20010&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2011&#x27;</span> ) <span class="hljs-keyword">ON</span> <span class="hljs-keyword">DUPLICATE</span> <span class="hljs-keyword">KEY</span> <span class="hljs-keyword">UPDATE</span> <span class="hljs-keyword">name</span> = <span class="hljs-string">&#x27;张三&#x27;</span></code></pre><blockquote><p>执行结果，因为不存在，则直接插入<br>​</p></blockquote><p><img src="/images/mysql/insertupdate/4.png"></p><p><img src="/images/mysql/insertupdate/5.png"></p><h3 id="2、唯一索引相同，主键不同"><a href="#2、唯一索引相同，主键不同" class="headerlink" title="2、唯一索引相同，主键不同"></a>2、唯一索引相同，主键不同</h3><pre><code class="hljs sql"><span class="hljs-keyword">INSERT</span> <span class="hljs-keyword">INTO</span> test_unique_key ( <span class="hljs-string">`id`</span>, <span class="hljs-string">`NAME`</span>, <span class="hljs-string">`term_id`</span>, <span class="hljs-string">`class_id`</span>, <span class="hljs-string">`course_id`</span> )<span class="hljs-keyword">VALUES</span>( <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2012&#x27;</span>, <span class="hljs-string">&#x27;您好Duplicate&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2012&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c20010&#x27;</span>, <span class="hljs-string">&#x27;17b2ee26583000163e0b2e12010c2011&#x27;</span> ) <span class="hljs-keyword">ON</span> <span class="hljs-keyword">DUPLICATE</span> <span class="hljs-keyword">KEY</span> <span class="hljs-keyword">UPDATE</span> <span class="hljs-keyword">name</span> = <span class="hljs-string">&#x27;张三1&#x27;</span></code></pre><blockquote><p>主键不同，唯一索引，也是更新数据<br>​</p></blockquote><p><img src="/images/mysql/insertupdate/6.png"></p><h3 id="3、综上所述"><a href="#3、综上所述" class="headerlink" title="3、综上所述"></a>3、综上所述</h3><p>在主键相同唯一键不同时，则使用主键更新，唯一键相同主键不同时使用唯一键更新 主键与唯一索引也为或者关系</p><h3 id="4、语句优点-1"><a href="#4、语句优点-1" class="headerlink" title="4、语句优点"></a>4、语句优点</h3><p>实际执行，则不存在为insert操作，如果存在则是update操作</p><h3 id="5、语句缺点-1"><a href="#5、语句缺点-1" class="headerlink" title="5、语句缺点"></a>5、语句缺点</h3><p>该语句书写起来比较麻烦，相当于是一个插入语句与更新语句的结合体<br>只是不需要书写update 的 where提交，然后MySQL会根据唯一索引或者主键进行判断</p><h3 id="6、权限说明-1"><a href="#6、权限说明-1" class="headerlink" title="6、权限说明"></a>6、权限说明</h3><p>要使用on duplicate key update 您必须同时拥有表的INSERT和 UPDATE权限。</p>]]></content>
+    
+    
+    <categories>
+      
+      <category>MySQL</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>replace, duplicate, on duplicate key update, insert and update, mysql</tag>
       
     </tags>
     
@@ -24,11 +595,17 @@
   
   <entry>
     <title>使用MySQL管理型数据库实现不定列数据存储</title>
-    <link href="/2020/12/09/mysql/mysql_implment_indeterminate_column/"/>
-    <url>/2020/12/09/mysql/mysql_implment_indeterminate_column/</url>
+    <link href="/2020/12/09/database/mysql/mysql_implment_indeterminate_column/"/>
+    <url>/2020/12/09/database/mysql/mysql_implment_indeterminate_column/</url>
     
     <content type="html"><![CDATA[<h1 id="使用MySQL管理型数据库实现不定列数据存储"><a href="#使用MySQL管理型数据库实现不定列数据存储" class="headerlink" title="使用MySQL管理型数据库实现不定列数据存储"></a>使用MySQL管理型数据库实现不定列数据存储</h1><blockquote><p>有一需求是需要上传一个excel之后进行查看，但是Excel的列是不固定的，还可以进行反复上传，<br>但是Excel中有一列是必须要有的那就是ID列，这个列可以用来判断第二次上传是更新还是有新加入的数据</p></blockquote><blockquote><p> 就对于这个需求呢，我在MySQL中设计了三张表， 表中重点字段为：</p></blockquote><blockquote><p>只列举重要字段</p></blockquote><blockquote><p>第一张表sample字段为：</p></blockquote><pre><code class="hljs sql">sample_number（样本编号 - 生成策略当前上传的日期然后另外加入4位数的自增从0001开始例如第一个202012090001）、sample_name（上传excel的名字）、excel_url（上传excel存储在服务器的地址）</code></pre><blockquote><p>第二张表sample_field字段 （存储列名）</p></blockquote><pre><code class="hljs sql">sample_number（样本编号）、field_name（字段名称）、field_type（STRING、INT、DATE）（字段类型）、is_primary（是否为主键）、field_index（字段排列顺序）</code></pre><blockquote><p>第三张表sample_data 字段（存储数据）：</p></blockquote><pre><code class="hljs sql">sample_number（样本编号）、field_name（字段名称）、row_id（行id，用来区分哪些数据是属于同一行）、field_value（具体的列的值，因为字段已经表示了类型，所以存储的时候直接都存储字符串，根据需要的时候在去做转换）</code></pre><h1 id="错误起源"><a href="#错误起源" class="headerlink" title="错误起源"></a>错误起源</h1><blockquote><p>所以，有了上面三张表之后，那就需要查询数据了，在查询数据的过程中呢，因为需要分页和条件筛选，按照逻辑进行组织了SQL，出错了</p></blockquote><h3 id="错误提示"><a href="#错误提示" class="headerlink" title="错误提示"></a>错误提示</h3><pre><code class="hljs pgsql">This <span class="hljs-keyword">version</span> <span class="hljs-keyword">of</span> MySQL doesn<span class="hljs-string">&#x27;t yet support &#x27;</span><span class="hljs-keyword">LIMIT</span> &amp; <span class="hljs-keyword">IN</span>/<span class="hljs-keyword">ALL</span>/<span class="hljs-keyword">ANY</span>/<span class="hljs-keyword">SOME</span> subquery<span class="hljs-string">&#x27;</span></code></pre><h3 id="在官网中找到了这个限制和解决方式"><a href="#在官网中找到了这个限制和解决方式" class="headerlink" title="在官网中找到了这个限制和解决方式"></a>在官网中找到了这个限制和解决方式</h3><p><a href="https://dev.mysql.com/doc/mysql-reslimits-excerpt/8.0/en/subquery-restrictions.html">https://dev.mysql.com/doc/mysql-reslimits-excerpt/8.0/en/subquery-restrictions.html</a></p><h3 id="解决方案：在子查询里面在加入一个孙子查询，把LIMIT进行实现了，就可以规避这个问题"><a href="#解决方案：在子查询里面在加入一个孙子查询，把LIMIT进行实现了，就可以规避这个问题" class="headerlink" title="解决方案：在子查询里面在加入一个孙子查询，把LIMIT进行实现了，就可以规避这个问题"></a>解决方案：在子查询里面在加入一个孙子查询，把LIMIT进行实现了，就可以规避这个问题</h3><pre><code class="hljs applescript">MySQL permits a subquery <span class="hljs-keyword">to</span> refer <span class="hljs-keyword">to</span> a stored function <span class="hljs-keyword">that</span> has data-modifying side effects such <span class="hljs-keyword">as</span> inserting rows <span class="hljs-keyword">into</span> a table. For example, <span class="hljs-keyword">if</span> f() inserts rows, <span class="hljs-keyword">the</span> following query can modify data:SELECT ... WHERE x IN (SELECT f() ...);This behavior <span class="hljs-keyword">is</span> an extension <span class="hljs-keyword">to</span> <span class="hljs-keyword">the</span> SQL standard. In MySQL, <span class="hljs-keyword">it</span> can produce nondeterministic results because f() might be executed a different <span class="hljs-built_in">number</span> <span class="hljs-keyword">of</span> <span class="hljs-keyword">times</span> <span class="hljs-keyword">for</span> different executions <span class="hljs-keyword">of</span> a <span class="hljs-keyword">given</span> query depending <span class="hljs-keyword">on</span> how <span class="hljs-keyword">the</span> optimizer chooses <span class="hljs-keyword">to</span> handle <span class="hljs-keyword">it</span>.For statement-based <span class="hljs-keyword">or</span> mixed-format replication, one implication <span class="hljs-keyword">of</span> this indeterminism <span class="hljs-keyword">is</span> <span class="hljs-keyword">that</span> such a query can produce different results <span class="hljs-keyword">on</span> <span class="hljs-keyword">the</span> source <span class="hljs-keyword">and</span> <span class="hljs-keyword">its</span> slaves.</code></pre><h2 id="最终实现SQL"><a href="#最终实现SQL" class="headerlink" title="最终实现SQL"></a>最终实现SQL</h2><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span>hsd.row_id,hsd.sample_number,hsd.field_name,hsd.field_value <span class="hljs-keyword">FROM</span>hwcss_sample_data <span class="hljs-keyword">AS</span> hsd <span class="hljs-keyword">WHERE</span><span class="hljs-keyword">EXISTS</span> (<span class="hljs-keyword">SELECT</span>row_id <span class="hljs-keyword">FROM</span>( <span class="hljs-keyword">SELECT</span> row_id <span class="hljs-keyword">FROM</span> hwcss_sample_data phsd <span class="hljs-keyword">WHERE</span> del_flag = <span class="hljs-number">0</span> <span class="hljs-keyword">AND</span> <span class="hljs-keyword">EXISTS</span> (<span class="hljs-keyword">SELECT</span> row_id <span class="hljs-keyword">FROM</span> hwcss_sample_data <span class="hljs-keyword">WHERE</span> field_name = <span class="hljs-string">&#x27;S_Serial&#x27;</span> <span class="hljs-keyword">AND</span> field_value = <span class="hljs-string">&#x27;1001&#x27;</span> <span class="hljs-keyword">AND</span>  phsd.row_id = row_id ) <span class="hljs-keyword">AND</span> <span class="hljs-keyword">EXISTS</span> (<span class="hljs-keyword">SELECT</span> row_id <span class="hljs-keyword">FROM</span> hwcss_sample_data <span class="hljs-keyword">WHERE</span> field_name = <span class="hljs-string">&#x27;ID&#x27;</span> <span class="hljs-keyword">AND</span> field_value = <span class="hljs-string">&#x27;B112527&#x27;</span> <span class="hljs-keyword">AND</span>  phsd.row_id = row_id )<span class="hljs-comment"># TODO 可以再加入筛选条件</span><span class="hljs-keyword">GROUP</span> <span class="hljs-keyword">BY</span> row_id <span class="hljs-keyword">LIMIT</span> <span class="hljs-number">10</span> <span class="hljs-keyword">OFFSET</span> <span class="hljs-number">1</span> ) <span class="hljs-keyword">AS</span> ihsd <span class="hljs-keyword">WHERE</span>hsd.row_id = ihsd.row_id ) <span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span>hsd.row_id</code></pre><h3 id="索引优化"><a href="#索引优化" class="headerlink" title="索引优化"></a>索引优化</h3><pre><code class="hljs dos">在 row_id 和 field_name 上面做了索引优化，使用B+<span class="hljs-built_in">TREE</span>索引，索引类型为 NORMAL</code></pre><p>附录：</p><blockquote><p>MySQL单表数据限制：<a href="https://dev.mysql.com/doc/refman/8.0/en/table-size-limit.html">https://dev.mysql.com/doc/refman/8.0/en/table-size-limit.html</a></p></blockquote>]]></content>
     
+    
+    <categories>
+      
+      <category>MySQL</category>
+      
+    </categories>
     
     
     <tags>
@@ -43,11 +620,17 @@
   
   <entry>
     <title>MySQL不支持在IN和EXISTS里面加入LIMIT</title>
-    <link href="/2020/12/09/mysql/mysql_inner_not_limit/"/>
-    <url>/2020/12/09/mysql/mysql_inner_not_limit/</url>
+    <link href="/2020/12/09/database/mysql/mysql_inner_not_limit/"/>
+    <url>/2020/12/09/database/mysql/mysql_inner_not_limit/</url>
     
     <content type="html"><![CDATA[<h1 id="MySQL不支持在IN和EXISTS里面加入LIMIT"><a href="#MySQL不支持在IN和EXISTS里面加入LIMIT" class="headerlink" title="MySQL不支持在IN和EXISTS里面加入LIMIT"></a>MySQL不支持在IN和EXISTS里面加入LIMIT</h1><blockquote><p>有一需求是需要上传一个excel之后进行查看，但是Excel的列是不固定的，还可以进行反复上传，<br>但是Excel中有一列是必须要有的那就是ID列，这个列可以用来判断第二次上传是更新还是有新加入的数据</p></blockquote><blockquote><p>在子查询里面使用了LIMIT，因为需要分页</p></blockquote><h3 id="在官网中找到了这个限制和解决方式"><a href="#在官网中找到了这个限制和解决方式" class="headerlink" title="在官网中找到了这个限制和解决方式"></a>在官网中找到了这个限制和解决方式</h3><p><a href="https://dev.mysql.com/doc/mysql-reslimits-excerpt/8.0/en/subquery-restrictions.html">https://dev.mysql.com/doc/mysql-reslimits-excerpt/8.0/en/subquery-restrictions.html</a></p><h3 id="解决方案：在子查询里面在加入一个孙子查询，把LIMIT进行实现了，就可以规避这个问题"><a href="#解决方案：在子查询里面在加入一个孙子查询，把LIMIT进行实现了，就可以规避这个问题" class="headerlink" title="解决方案：在子查询里面在加入一个孙子查询，把LIMIT进行实现了，就可以规避这个问题"></a>解决方案：在子查询里面在加入一个孙子查询，把LIMIT进行实现了，就可以规避这个问题</h3><pre><code class="hljs applescript">MySQL permits a subquery <span class="hljs-keyword">to</span> refer <span class="hljs-keyword">to</span> a stored function <span class="hljs-keyword">that</span> has data-modifying side effects such <span class="hljs-keyword">as</span> inserting rows <span class="hljs-keyword">into</span> a table. For example, <span class="hljs-keyword">if</span> f() inserts rows, <span class="hljs-keyword">the</span> following query can modify data:SELECT ... WHERE x IN (SELECT f() ...);This behavior <span class="hljs-keyword">is</span> an extension <span class="hljs-keyword">to</span> <span class="hljs-keyword">the</span> SQL standard. In MySQL, <span class="hljs-keyword">it</span> can produce nondeterministic results because f() might be executed a different <span class="hljs-built_in">number</span> <span class="hljs-keyword">of</span> <span class="hljs-keyword">times</span> <span class="hljs-keyword">for</span> different executions <span class="hljs-keyword">of</span> a <span class="hljs-keyword">given</span> query depending <span class="hljs-keyword">on</span> how <span class="hljs-keyword">the</span> optimizer chooses <span class="hljs-keyword">to</span> handle <span class="hljs-keyword">it</span>.For statement-based <span class="hljs-keyword">or</span> mixed-format replication, one implication <span class="hljs-keyword">of</span> this indeterminism <span class="hljs-keyword">is</span> <span class="hljs-keyword">that</span> such a query can produce different results <span class="hljs-keyword">on</span> <span class="hljs-keyword">the</span> source <span class="hljs-keyword">and</span> <span class="hljs-keyword">its</span> slaves.</code></pre>]]></content>
     
+    
+    <categories>
+      
+      <category>MySQL</category>
+      
+    </categories>
     
     
     <tags>
@@ -80,12 +663,37 @@
   
   
   <entry>
-    <title>ThreadPoolExecutor 参数设置 [转载]</title>
+    <title>Spring Boot 整合 Elasticsearch 客户端出现异常 NoSuchFieldError： IGNORE_DEPRECATIONS，解决方案</title>
+    <link href="/2020/10/22/bigdata/elasticsearch/springboot-elasticsearch/"/>
+    <url>/2020/10/22/bigdata/elasticsearch/springboot-elasticsearch/</url>
+    
+    <content type="html"><![CDATA[<h1 id="Spring-Boot-整合-Elasticsearch-客户端出现异常-NoSuchFieldError-IGNORE-DEPRECATIONS，解决方案"><a href="#Spring-Boot-整合-Elasticsearch-客户端出现异常-NoSuchFieldError-IGNORE-DEPRECATIONS，解决方案" class="headerlink" title="Spring Boot 整合 Elasticsearch 客户端出现异常 NoSuchFieldError: IGNORE_DEPRECATIONS，解决方案"></a>Spring Boot 整合 Elasticsearch 客户端出现异常 NoSuchFieldError: IGNORE_DEPRECATIONS，解决方案</h1><h3 id="启动的时候爆出异常信息："><a href="#启动的时候爆出异常信息：" class="headerlink" title="启动的时候爆出异常信息："></a>启动的时候爆出异常信息：</h3><pre><code class="hljs angelscript">org.springframework.beans.factory.BeanCreationException: Error creating bean with name <span class="hljs-string">&#x27;restHighLevelClient&#x27;</span> defined <span class="hljs-keyword">in</span> com.example.demo.MyHighLevelEsRestDemoApplication: Bean instantiation via factory method failed; nested exception <span class="hljs-keyword">is</span> org.springframework.beans.BeanInstantiationException: Failed to instantiate [org.elasticsearch.client.RestHighLevelClient]: Factory method <span class="hljs-string">&#x27;restHighLevelClient&#x27;</span> threw exception; nested exception <span class="hljs-keyword">is</span> java.lang.NoSuchFieldError: IGNORE_DEPRECATIONS    at org.springframework.beans.factory.support.ConstructorResolver.instantiate(ConstructorResolver.java:<span class="hljs-number">655</span>) ~[spring-beans<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.beans.factory.support.ConstructorResolver.instantiateUsingFactoryMethod(ConstructorResolver.java:<span class="hljs-number">483</span>) ~[spring-beans<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.instantiateUsingFactoryMethod(AbstractAutowireCapableBeanFactory.java:<span class="hljs-number">1336</span>) ~[spring-beans<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:<span class="hljs-number">1176</span>) ~[spring-beans<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:<span class="hljs-number">556</span>) ~[spring-beans<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:<span class="hljs-number">516</span>) ~[spring-beans<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$<span class="hljs-number">0</span>(AbstractBeanFactory.java:<span class="hljs-number">324</span>) ~[spring-beans<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:<span class="hljs-number">226</span>) ~[spring-beans<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:<span class="hljs-number">322</span>) ~[spring-beans<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:<span class="hljs-number">202</span>) ~[spring-beans<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.beans.factory.support.DefaultListableBeanFactory.preInstantiateSingletons(DefaultListableBeanFactory.java:<span class="hljs-number">897</span>) ~[spring-beans<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.context.support.AbstractApplicationContext.finishBeanFactoryInitialization(AbstractApplicationContext.java:<span class="hljs-number">879</span>) ~[spring-context<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.context.support.AbstractApplicationContext.<span class="hljs-built_in">ref</span>resh(AbstractApplicationContext.java:<span class="hljs-number">551</span>) ~[spring-context<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.boot.SpringApplication.<span class="hljs-built_in">ref</span>resh(SpringApplication.java:<span class="hljs-number">758</span>) [spring-boot<span class="hljs-number">-2.3</span><span class="hljs-number">.2</span>.RELEASE.jar:<span class="hljs-number">2.3</span><span class="hljs-number">.2</span>.RELEASE]    at org.springframework.boot.SpringApplication.<span class="hljs-built_in">ref</span>resh(SpringApplication.java:<span class="hljs-number">750</span>) [spring-boot<span class="hljs-number">-2.3</span><span class="hljs-number">.2</span>.RELEASE.jar:<span class="hljs-number">2.3</span><span class="hljs-number">.2</span>.RELEASE]    at org.springframework.boot.SpringApplication.<span class="hljs-built_in">ref</span>reshContext(SpringApplication.java:<span class="hljs-number">397</span>) [spring-boot<span class="hljs-number">-2.3</span><span class="hljs-number">.2</span>.RELEASE.jar:<span class="hljs-number">2.3</span><span class="hljs-number">.2</span>.RELEASE]    at org.springframework.boot.SpringApplication.run(SpringApplication.java:<span class="hljs-number">315</span>) [spring-boot<span class="hljs-number">-2.3</span><span class="hljs-number">.2</span>.RELEASE.jar:<span class="hljs-number">2.3</span><span class="hljs-number">.2</span>.RELEASE]    at org.springframework.boot.SpringApplication.run(SpringApplication.java:<span class="hljs-number">1237</span>) [spring-boot<span class="hljs-number">-2.3</span><span class="hljs-number">.2</span>.RELEASE.jar:<span class="hljs-number">2.3</span><span class="hljs-number">.2</span>.RELEASE]    at org.springframework.boot.SpringApplication.run(SpringApplication.java:<span class="hljs-number">1226</span>) [spring-boot<span class="hljs-number">-2.3</span><span class="hljs-number">.2</span>.RELEASE.jar:<span class="hljs-number">2.3</span><span class="hljs-number">.2</span>.RELEASE]    at com.example.demo.MyHighLevelEsRestDemoApplication.main(MyHighLevelEsRestDemoApplication.java:<span class="hljs-number">23</span>) [classes/:na]Caused by: org.springframework.beans.BeanInstantiationException: Failed to instantiate [org.elasticsearch.client.RestHighLevelClient]: Factory method <span class="hljs-string">&#x27;restHighLevelClient&#x27;</span> threw exception; nested exception <span class="hljs-keyword">is</span> java.lang.NoSuchFieldError: IGNORE_DEPRECATIONS    at org.springframework.beans.factory.support.SimpleInstantiationStrategy.instantiate(SimpleInstantiationStrategy.java:<span class="hljs-number">185</span>) ~[spring-beans<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.beans.factory.support.ConstructorResolver.instantiate(ConstructorResolver.java:<span class="hljs-number">650</span>) ~[spring-beans<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    ... <span class="hljs-number">19</span> common frames omittedCaused by: java.lang.NoSuchFieldError: IGNORE_DEPRECATIONS    at org.elasticsearch.client.RestHighLevelClient.&lt;clinit&gt;(RestHighLevelClient.java:<span class="hljs-number">1911</span>) ~[elasticsearch-rest-high-level-client<span class="hljs-number">-7.8</span><span class="hljs-number">.1</span>.jar:<span class="hljs-number">7.8</span><span class="hljs-number">.1</span>]    at com.example.demo.MyHighLevelEsRestDemoApplication.restHighLevelClient(MyHighLevelEsRestDemoApplication.java:<span class="hljs-number">29</span>) [classes/:na]    at com.example.demo.MyHighLevelEsRestDemoApplication$$EnhancerBySpringCGLIB$$a7cdbb42.CGLIB$restHighLevelClient$<span class="hljs-number">1</span>(&lt;generated&gt;) ~[classes/:na]    at com.example.demo.MyHighLevelEsRestDemoApplication$$EnhancerBySpringCGLIB$$a7cdbb42$$FastClassBySpringCGLIB$$c395303f.invoke(&lt;generated&gt;) ~[classes/:na]    at org.springframework.cglib.proxy.MethodProxy.invokeSuper(MethodProxy.java:<span class="hljs-number">244</span>) ~[spring-core<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at org.springframework.context.annotation.ConfigurationClassEnhancer$BeanMethodInterceptor.<span class="hljs-built_in">int</span>ercept(ConfigurationClassEnhancer.java:<span class="hljs-number">331</span>) ~[spring-context<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    at com.example.demo.MyHighLevelEsRestDemoApplication$$EnhancerBySpringCGLIB$$a7cdbb42.restHighLevelClient(&lt;generated&gt;) ~[classes/:na]    at sun.<span class="hljs-built_in">ref</span>lect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:<span class="hljs-number">1.8</span><span class="hljs-number">.0</span>_242]    at sun.<span class="hljs-built_in">ref</span>lect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:<span class="hljs-number">62</span>) ~[na:<span class="hljs-number">1.8</span><span class="hljs-number">.0</span>_242]    at sun.<span class="hljs-built_in">ref</span>lect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:<span class="hljs-number">43</span>) ~[na:<span class="hljs-number">1.8</span><span class="hljs-number">.0</span>_242]    at java.lang.<span class="hljs-built_in">ref</span>lect.Method.invoke(Method.java:<span class="hljs-number">498</span>) ~[na:<span class="hljs-number">1.8</span><span class="hljs-number">.0</span>_242]    at org.springframework.beans.factory.support.SimpleInstantiationStrategy.instantiate(SimpleInstantiationStrategy.java:<span class="hljs-number">154</span>) ~[spring-beans<span class="hljs-number">-5.2</span><span class="hljs-number">.8</span>.RELEASE.jar:<span class="hljs-number">5.2</span><span class="hljs-number">.8</span>.RELEASE]    ... <span class="hljs-number">20</span> common frames omitted</code></pre><h3 id="这是SpringBoot的elasticsearch版本冲突，导致的无法找到的问题"><a href="#这是SpringBoot的elasticsearch版本冲突，导致的无法找到的问题" class="headerlink" title="这是SpringBoot的elasticsearch版本冲突，导致的无法找到的问题"></a>这是SpringBoot的elasticsearch版本冲突，导致的无法找到的问题</h3><blockquote><p>需要修改导入依赖包去掉version</p></blockquote><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.elasticsearch.client<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>elasticsearch-rest-high-level-client<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>7.8.1<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span></code></pre><p>修改为</p><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.elasticsearch.client<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>elasticsearch-rest-high-level-client<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span></code></pre>]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>Java,springboot,Spring,Linux,Bigdata,NoSQL,Elasticsearch</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>ThreadPoolExecutor 参数设置 [网络转载]</title>
     <link href="/2020/10/20/java/thread/thread_pool_settings/"/>
     <url>/2020/10/20/java/thread/thread_pool_settings/</url>
     
     <content type="html"><![CDATA[<p>一、ThreadPoolExecutor的重要参数</p><pre><code>1、corePoolSize：核心线程数    * 核心线程会一直存活，及时没有任务需要执行    * 当线程数小于核心线程数时，即使有线程空闲，线程池也会优先创建新线程处理    * 设置allowCoreThreadTimeout=true（默认false）时，核心线程会超时关闭2、queueCapacity：任务队列容量（阻塞队列）    * 当核心线程数达到最大时，新任务会放在队列中排队等待执行3、maxPoolSize：最大线程数    * 当线程数&gt;=corePoolSize，且任务队列已满时。线程池会创建新线程来处理任务    * 当线程数=maxPoolSize，且任务队列已满时，线程池会拒绝处理任务而抛出异常4、 keepAliveTime：线程空闲时间    * 当线程空闲时间达到keepAliveTime时，线程会退出，直到线程数量=corePoolSize    * 如果allowCoreThreadTimeout=true，则会直到线程数量=05、allowCoreThreadTimeout：允许核心线程超时6、rejectedExecutionHandler：任务拒绝处理器    * 两种情况会拒绝处理任务：        - 当线程数已经达到maxPoolSize，切队列已满，会拒绝新任务        - 当线程池被调用shutdown()后，会等待线程池里的任务执行完毕，再shutdown。如果在调用shutdown()和线程池真正shutdown之间提交任务，会拒绝新任务    * 线程池会调用rejectedExecutionHandler来处理这个任务。如果没有设置默认是AbortPolicy，会抛出异常    * ThreadPoolExecutor类有几个内部实现类来处理这类情况：        - AbortPolicy 丢弃任务，抛运行时异常        - CallerRunsPolicy 执行任务        - DiscardPolicy 忽视，什么都不会发生        - DiscardOldestPolicy 从队列中踢出最先进入队列（最后一个执行）的任务    * 实现RejectedExecutionHandler接口，可自定义处理器</code></pre><p>二、ThreadPoolExecutor执行顺序</p><pre><code>    线程池按以下行为执行任务1. 当线程数小于核心线程数时，创建线程。2. 当线程数大于等于核心线程数，且任务队列未满时，将任务放入任务队列。3. 当线程数大于等于核心线程数，且任务队列已满    - 若线程数小于最大线程数，创建线程    - 若线程数等于最大线程数，抛出异常，拒绝任务</code></pre><p>三、如何设置参数</p><pre><code>1、默认值    * corePoolSize=1    * queueCapacity=Integer.MAX_VALUE    * maxPoolSize=Integer.MAX_VALUE    * keepAliveTime=60s    * allowCoreThreadTimeout=false    * rejectedExecutionHandler=AbortPolicy()2、如何来设置    * 需要根据几个值来决定        - tasks ：每秒的任务数，假设为500~1000        - taskcost：每个任务花费时间，假设为0.1s        - responsetime：系统允许容忍的最大响应时间，假设为1s    * 做几个计算        - corePoolSize = 每秒需要多少个线程处理？             * threadcount = tasks/(1/taskcost) =tasks*taskcout =  (500~1000)*0.1 = 50~100 个线程。corePoolSize设置应该大于50            * 根据8020原则，如果80%的每秒任务数小于800，那么corePoolSize设置为80即可        - queueCapacity = (coreSizePool/taskcost)*responsetime            * 计算可得 queueCapacity = 80/0.1*1 = 80。意思是队列里的线程可以等待1s，超过了的需要新开线程来执行            * 切记不能设置为Integer.MAX_VALUE，这样队列会很大，线程数只会保持在corePoolSize大小，当任务陡增时，不能新开线程来执行，响应时间会随之陡增。        - maxPoolSize = (max(tasks)- queueCapacity)/(1/taskcost)            * 计算可得 maxPoolSize = (1000-80)/10 = 92            * （最大任务数-队列容量）/每个线程每秒处理能力 = 最大线程数        - rejectedExecutionHandler：根据具体情况来决定，任务不重要可丢弃，任务重要则要利用一些缓冲机制来处理        - keepAliveTime和allowCoreThreadTimeout采用默认通常能满足3、 以上都是理想值，实际情况下要根据机器性能来决定。如果在未达到最大线程数的情况机器cpu load已经满了，则需要通过升级硬件（呵呵）和优化代码，降低taskcost来处理。</code></pre>]]></content>
     
+    
+    <categories>
+      
+      <category>Java Base</category>
+      
+    </categories>
     
     
     <tags>
@@ -169,19 +777,6 @@
       <tag>docker,docker compose,start,Linux</tag>
       
     </tags>
-    
-  </entry>
-  
-  
-  
-  <entry>
-    <title>Hello Andot Studio</title>
-    <link href="/2020/10/11/hello-andot/"/>
-    <url>/2020/10/11/hello-andot/</url>
-    
-    <content type="html"><![CDATA[<p>Welcome to <a href="https://andot.org/">AndotStudio</a>! </p><h2 id="欢迎您们来到我的个人博客"><a href="#欢迎您们来到我的个人博客" class="headerlink" title="欢迎您们来到我的个人博客"></a>欢迎您们来到我的个人博客</h2><h3 id="知乎"><a href="#知乎" class="headerlink" title="知乎"></a>知乎</h3><blockquote><p>个人主页：<a href="https://www.zhihu.com/people/antsdot">https://www.zhihu.com/people/antsdot</a></p></blockquote><blockquote><p>知乎专栏：<a href="https://www.zhihu.com/column/artskill">https://www.zhihu.com/column/artskill</a></p></blockquote>]]></content>
-    
-    
     
   </entry>
   

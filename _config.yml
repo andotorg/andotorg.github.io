@@ -105,7 +105,7 @@ theme: fluid
 deploy:
   type: git
   repo: https://github.com/andotorg/andotorg.github.io
-  branch: site
+  branch: gh-pages
   message: publish site
 
 netlify_cms:

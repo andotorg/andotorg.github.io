@@ -162,7 +162,7 @@
 </nav>
 
     <div class="banner intro-2" id="background" parallax=true
-         style="background: url('/img/default.png') no-repeat center center;
+         style="background: url('/images/banner.jpeg') no-repeat center center;
            background-size: cover;">
       <div class="full-bg-img">
         <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
@@ -211,6 +211,14 @@
 
   
   
+    
+      <!-- LeanCloud 统计文章PV -->
+      <span id="leancloud-post-views-container" class="post-meta" style="display: none">
+        <i class="iconfont icon-eye" aria-hidden="true"></i>
+        截止当前共有 <span id="leancloud-post-views"></span> 次阅读
+      </span>
+    
+  
 </div>
 
             
@@ -238,7 +246,7 @@
             
               <p class="note note-info">
                 
-                  本文最后更新于：2020年10月20日 上午
+                  版权归原作者所有。 本文最后更新于：2022年7月3日 晚上
                 
               </p>
             
@@ -349,7 +357,7 @@ public class ParamInterception &#123;
     <div id="disqus_thread"></div>
     <script type="text/javascript">
       var disqus_config = function () {
-        this.page.url = 'https://andot.org/2018/02/22/2018/java-custom-annotation-study/';
+        this.page.url = 'https://andotorg.github.io/2018/02/22/2018/java-custom-annotation-study/';
         this.page.identifier = '/2018/02/22/2018/java-custom-annotation-study/';
       };
       function loadDisqus() {
@@ -555,7 +563,7 @@ public class ParamInterception &#123;
         listClass: 'tocbot-list',
         isCollapsedClass: 'tocbot-is-collapsed',
         collapsibleClass: 'tocbot-is-collapsible',
-        collapseDepth: 0,
+        collapseDepth: 6,
         scrollSmooth: true,
         headingsOffset: -boardTop
       });
