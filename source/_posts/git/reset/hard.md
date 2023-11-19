@@ -1,3 +1,14 @@
+---
+title: Git 基础知识记录分享 - reset hard
+date: 2022-09-27
+tags:
+  - Git
+  - reset
+  - hard
+categories: Git Base
+---
+
+
 # reset hard
 
 ## 更新工作目录

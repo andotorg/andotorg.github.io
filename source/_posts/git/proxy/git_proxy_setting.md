@@ -1,3 +1,12 @@
+---
+title: Git 基础知识记录分享 - Git 设置代理和取消代理
+date: 2022-10-01
+tags:
+  - Git
+  - reset
+  - hard
+categories: Git Base
+---
 
 
 # Git 设置代理和取消代理
