@@ -1,3 +1,13 @@
+---
+title: MySQL知识分享 - DDL
+date: 2022-11-01
+tags:
+  - mysql
+  - ddl
+categories: MySQL
+---
+
+
 # DDL
 
 > 如果没有类型之间的使用差异，则默认使用carchar代替类型  
