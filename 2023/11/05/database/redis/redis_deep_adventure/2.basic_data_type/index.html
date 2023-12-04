@@ -1,0 +1,693 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=&#34;auto&#34;>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" type="image/png" href="/img/favicon.png">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="description" content="是一个软件开发组织">
+  <meta name="author" content="lucas xie">
+  <meta name="keywords" content="andot,andotorg,andot.org,蚁点">
+  <title>Redis 基础数据类型 - Andot Person Blog</title>
+
+  <link  rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/4.4.1/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.staticfile.org/github-markdown-css/4.0.0/github-markdown.min.css" />
+  <link  rel="stylesheet" href="/lib/hint/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.staticfile.org/highlight.js/10.0.0/styles/github-gist.min.css" />
+    
+  
+
+  
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_pf9vaxs7x7b.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_kmeydafke9r.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand"
+       href="/">&nbsp;<strong>Andot Person Blog</strong>&nbsp;</a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/links/">
+                <i class="iconfont icon-link-fill"></i>
+                友链
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" data-toggle="modal" data-target="#modalSearch">&nbsp;<i
+                class="iconfont icon-search"></i>&nbsp;</a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" href="javascript:">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner intro-2" id="background" parallax=true
+         style="background: url('/images/banner.jpeg') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="container page-header text-center fade-in-up">
+            <span class="h2" id="subtitle">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-author" aria-hidden="true"></i>
+      lucas xie
+    </span>
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2023-11-05 00:00" pubdate>
+        2023年11月5日 凌晨
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      1.3k 字
+    </span>
+  
+
+  
+    
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      15
+       分钟
+    </span>
+  
+
+  
+  
+    
+      <!-- LeanCloud 统计文章PV -->
+      <span id="leancloud-post-views-container" class="post-meta" style="display: none">
+        <i class="iconfont icon-eye" aria-hidden="true"></i>
+        截止当前共有 <span id="leancloud-post-views"></span> 次阅读
+      </span>
+    
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid">
+  <div class="row">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-md">
+      <div class="container nopadding-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto" id="post">
+            <!-- SEO header -->
+            <h1 style="display: none">Redis 基础数据类型</h1>
+            
+              <p class="note note-info">
+                
+                  版权归原作者所有。 本文最后更新于：2023年12月5日 凌晨
+                
+              </p>
+            
+            <div class="markdown-body" id="post-body">
+              <h1 id="String类型"><a href="#String类型" class="headerlink" title="String类型"></a>String类型</h1><p>不同类型的数据结构的差异都在于value<br>value类似java ArrayList</p>
+<h3 id="可以动态扩容"><a href="#可以动态扩容" class="headerlink" title="可以动态扩容"></a>可以动态扩容</h3><p>在实际分配的空间小于1MB时，扩容是加倍现有空间，如果超过1MB之后，扩容只会多扩容1MB，需要注意的是字符串长度最大为512MB</p>
+<h3 id="命令"><a href="#命令" class="headerlink" title="命令"></a>命令</h3><pre><code class="hljs shell">set k1 v1
+get k1
+exists k1  # 是否存在k1缓存
+del k1
+mset k1 v1 k2 v2
+mget k1 k2 k3
+expire k1 5   # 5s后过期
+
+setex  k1 5 v1  # 5s后过期，等价与  set+expire
+setnx k1 v1 # k1如果存在则创建不成功</code></pre>
+
+<h3 id="计数器"><a href="#计数器" class="headerlink" title="计数器"></a>计数器</h3><pre><code class="hljs shell">set age 10
+incr age  # 这个时候 age变为11
+incr age by 5 # 这个时候age变为 16
+incr age by -5 # 这个时候age变为 11</code></pre>
+
+<p>字符串时间底层采用bitmap</p>
+<h1 id="list（列表）"><a href="#list（列表）" class="headerlink" title="list（列表）"></a>list（列表）</h1><blockquote>
+<p>相当于Java的链表（双向链表）</p>
+</blockquote>
+<p>常用来作为异步队列使用<br>右边进左边出：队列</p>
+<h3 id="命令-1"><a href="#命令-1" class="headerlink" title="命令"></a>命令</h3><pre><code class="hljs shell">rpush k1 v2 v3 v4
+llen  k1   # 3
+lpop k1  # v2
+lpop  k1 # v3
+右边进右边出：栈 (使用场景并不多)
+rpush k1 v1 v2 v3
+rpop k1 # v3</code></pre>
+
+<blockquote>
+<p>lindex 按照下表找到元素，因为是链表，所以要遍历链表，随着index变大而变差</p>
+</blockquote>
+<blockquote>
+<p>ltrim  类似 java的字符串去除两边空格，但是这里去除的不是两边空格，而是按照 给出一个开始index和结尾index 得到子串，例如  k1=abcde   ltrim k1 1 -2  得出来的是 bcd 这个方式，也是o(n), 需要慎用</p>
+</blockquote>
+<h3 id="快速列表"><a href="#快速列表" class="headerlink" title="快速列表"></a>快速列表</h3><p>redis底层存储的并不是一个简单的linkedlist<br>而是为一个快速链表的，<br>首先用一块连续的内存存储，这个结构为 ziplist， 压缩链表<br>然后当数据量比较多的时候才会改为quicklist，快速链表<br>普通链表需要附加指针空间太大，会浪费空间，加重内存的碎片化<br>quicklist就是把多个ziplist 通过双指针连起来，这样满足插入性能，又不会出现太大的空间</p>
+<h1 id="hash（字典）"><a href="#hash（字典）" class="headerlink" title="hash（字典）"></a>hash（字典）</h1><blockquote>
+<p>相当于Java HashMap</p>
+</blockquote>
+<p>数组+链表的二维结构<br>hash碰撞后会使通过链表进行连接<br>redis hash值只能为string，rehash的方式不一样<br>渐进式rehash，就是每次会保存 old hash 和 new hash，当通过定时任务或者下一次hash时进行old hash迁移到new hash之后，搬迁完成之后 new hash才会替代old hash</p>
+<h3 id="命令-2"><a href="#命令-2" class="headerlink" title="命令"></a>命令</h3><pre><code class="hljs shell">hset k1 f1 v1
+hgetall k1
+hlen k1
+hget k1 f1
+hmset k1 f1 v1 k2 f2 v2
+hincrby k1 f1 1  # 给单个key中的字段数值 +1</code></pre>
+<h1 id="set（集合）"><a href="#set（集合）" class="headerlink" title="set（集合）"></a>set（集合）</h1><blockquote>
+<p>Java HashSet</p>
+</blockquote>
+<p>内部键值对是无序的、唯一的，内部相当于一个特殊的字典，key为值，value为NULL<br>set由于有去重的逻辑，所以存储例如中奖用户id，这样会保证同一个用户不会中奖多次</p>
+<pre><code class="hljs shell">sadd k1 v1
+sadd k1 v2 v3
+smembers k1 # 返回的顺序和插入顺序不一致，因为无序
+sismembers k1 v2 # 查询某个值是否存在
+scard k1 # 获取长度
+spop k1 # 弹出一个， 弹出代表：随机弹出一个，拿出来，这个时候查看长度也就减一了</code></pre>
+
+<h1 id="zset（有序集合）"><a href="#zset（有序集合）" class="headerlink" title="zset（有序集合）"></a>zset（有序集合）</h1><blockquote>
+<p>类似Java的SortedSet和HashMap的结合体</p>
+</blockquote>
+<p>一方面是set 保证唯一性，另一方面 给每一个value 赋予一个score，用于排序的权重<br>内部实现了一个跳表数据结构</p>
+<h2 id="应用场景"><a href="#应用场景" class="headerlink" title="应用场景"></a>应用场景</h2><p>可以用来存储分析关注列表，用户id为value  关注时间为 score<br>存储学生成绩 用户id 为value  学生成绩为 score</p>
+<h3 id="命令-3"><a href="#命令-3" class="headerlink" title="命令"></a>命令</h3><pre><code class="hljs shell">zadd k1 1.0  v1
+zadd k1 2.0  v2
+zadd k1 3.0  v3
+zrange k1 0 -1   # 按照score 排名输出，参数区间为排名范围  -1代表 从第0个开始到最后都输出  
+输出  v1 v2 v3
+zrange k1 0 1 # 从第0个到 第1个，这个0 1 是下表，并且取值为 左闭右闭区间 [0, 1] 输出位  v1 v2
+zrevrange k1 0 1  # 逆序输出， 输出 v3 v2
+zcard k1  # 看k1的长度
+zcore k1 v1 # 这里输出精度会有问题，存储结构为double</code></pre>
+<p><img src="https://cdn.nlark.com/yuque/0/2023/png/670601/1700375029474-3661de72-ba63-4d68-ada7-723adbd3e286.png#averageHue=%23ffffff&clientId=u8bee2ece-ce8a-4&from=paste&height=243&id=uce0d8e13&originHeight=486&originWidth=664&originalType=binary&ratio=2&rotation=0&showTitle=false&size=59137&status=done&style=none&taskId=u58500b79-82f6-4900-a4f5-8e3b2834e10&title=&width=332" srcset="/img/loading.gif" alt="image.png"><br>zrank k1 v2 # 输出当前v2的排名 从0开始<br>zrangebyscore k1 0 2 # 按照分数范围去除，例如把分数作为筛选条件   左闭右闭区间<br>zrem k1 v1 # 删除一个元素</p>
+<h3 id="跳跃列表"><a href="#跳跃列表" class="headerlink" title="跳跃列表"></a>跳跃列表</h3><p>zset要时间随机插入和删除，不适合用数组来实现<br>拓展知识：<br>对于任意位置按照顺序插入通常采用二分查找方式来找到位置插入，二分查找的对象必须是数组，只有数组才可以支持快速位置定位，</p>
+<p>通过跳跃列表可以实现，实现类似生活中的层级制<br>跳跃表原理：<br>TODO</p>
+<h1 id="上面类型中有通用规则"><a href="#上面类型中有通用规则" class="headerlink" title="上面类型中有通用规则"></a>上面类型中有通用规则</h1><h2 id="容器型数据结构的通用规则"><a href="#容器型数据结构的通用规则" class="headerlink" title="容器型数据结构的通用规则"></a>容器型数据结构的通用规则</h2><p>1、如果不存在则创建（create if not exists）:如果容器不存在，就创建一个，然后rpush一个新元素<br>2、如果没有元素了则删除容器（drop if no elements）: 如果容器内没有元素了则立即删除容器，释放内存</p>
+<h2 id="过期时间"><a href="#过期时间" class="headerlink" title="过期时间"></a>过期时间</h2><p>所有的数据类型都可以设置过期事件，过期时间是以对象为单位设置的，例如hashmap的field不支持单独设置过期时间，如果设置过期时间，然后重新set 之后，过期时间会失效<br>exprire</p>
+
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/ReadingBooks/">ReadingBooks</a>
+                    
+                  </div>
+                
+                
+                  <div class="post-meta">
+                    <i class="iconfont icon-tags"></i>
+                    
+                      <a class="hover-with-bg" href="/tags/ReadingBooks-Book-Redis/">ReadingBooks,Book,Redis</a>
+                    
+                  </div>
+                
+              </div>
+              
+                <p class="note note-warning">本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明蚁点博客出处！</p>
+              
+              
+                <div class="post-prevnext row">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2023/11/08/database/redis/redis_deep_adventure/3.distributed_lock/">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Redis 分布式锁</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2023/11/02/database/redis/redis_deep_adventure/1.frist/">
+                        <span class="hidden-mobile">Redis可以做什么？</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+              <!-- Comments -->
+              <article class="comments" id="comments">
+                
+                
+  <div class="disqus" style="width:100%">
+    <div id="disqus_thread"></div>
+    <script type="text/javascript">
+      var disqus_config = function () {
+        this.page.url = 'https://andotorg.github.io/2023/11/05/database/redis/redis_deep_adventure/2.basic_data_type/';
+        this.page.identifier = '/2023/11/05/database/redis/redis_deep_adventure/2.basic_data_type/';
+      };
+      function loadDisqus() {
+        (function () {
+          var d = document,
+            s = d.createElement('script');
+          s.src = '//' + '' + '.disqus.com/embed.js';
+          s.setAttribute('data-timestamp', new Date());
+          (d.head || d.body).appendChild(s);
+        })();
+      }
+      waitElementVisible('disqus_thread', loadDisqus);
+    </script>
+    <noscript>Please enable JavaScript to view the
+      <a target="_blank" href="https://disqus.com/?ref_noscript" rel="nofollow noopener noopener">comments powered by Disqus.</a>
+    </noscript>
+  </div>
+
+
+              </article>
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div id="tocbot"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+  </main>
+
+  
+    <a id="scroll-top-button" href="#" role="button">
+      <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+    </a>
+  
+
+  
+    <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+  
+
+  
+    <!-- APlayer 音乐播放器 -->
+    <div id="aplayer"></div>
+    <script defer src="https://cdn.staticfile.org/aplayer/1.10.1/APlayer.min.js" ></script>
+<link  rel="stylesheet" href="https://cdn.staticfile.org/aplayer/1.10.1/APlayer.min.css" />
+<script type="text/javascript">
+  var oldLoadAp = window.onload;
+  window.onload = function () {
+    oldLoadAp && oldLoadAp();
+
+    new APlayer({
+      container: document.getElementById('aplayer'),
+      fixed: true,
+      autoplay: 'false' === 'true',
+      loop: 'all',
+      order: 'random',
+      theme: '#b7daff',
+      preload: 'none',
+      audio: [{"name":"格日勒台雅布那毕","artist":"包银廷&王宇震","url":"/resource/music/nlb.mp3","cover":"/resource/covert.png"},{"name":"迎亲","artist":"artist","url":"/resource/music/yq.mp3","cover":"https://...cover.jpg"}]
+    });
+  }
+</script>
+
+  
+
+  
+
+  <footer class="mt-5">
+  <div class="text-center py-3">
+    <div>
+      <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a>
+      <i class="iconfont icon-love"></i>
+      <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener">
+        <span>Fluid</span></a>
+    </div>
+    
+  <div class="statistics">
+    
+    
+
+    
+      
+        <!-- 不蒜子统计PV -->
+        <span id="busuanzi_container_site_pv" style="display: none">
+            总访问量 
+            <span id="busuanzi_value_site_pv"></span>
+             次
+          </span>
+      
+      
+        <!-- 不蒜子统计UV -->
+        <span id="busuanzi_container_site_uv" style="display: none">
+            总访客数 
+            <span id="busuanzi_value_site_uv"></span>
+             人
+          </span>
+      
+    
+  </div>
+
+
+    
+  <!-- 备案信息 -->
+  <div class="beian">
+    <a href="http://beian.miit.gov.cn/" target="_blank"
+       rel="nofollow noopener">鲁ICP证 号</a>
+    
+      <a
+        href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=12345678"
+        rel="nofollow noopener"
+        class="beian-police"
+        target="_blank"
+      >
+        <span class="beian-police-sep">&nbsp;|&nbsp;</span>
+        
+          <img src="/img/police_beian.png" srcset="/img/loading.gif" alt="police-icon" />
+        
+        <span>鲁公网安备12345678号</span>
+      </a>
+     
+  </div>
+
+
+    
+  </div>
+</footer>
+
+<!-- SCRIPTS -->
+<script  src="https://cdn.staticfile.org/jquery/3.4.1/jquery.min.js" ></script>
+<script  src="https://cdn.staticfile.org/twitter-bootstrap/4.4.1/js/bootstrap.min.js" ></script>
+<script  src="/js/debouncer.js" ></script>
+<script  src="/js/main.js" ></script>
+
+<!-- Plugins -->
+
+
+  
+    <script  src="/js/lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  <script defer src="https://cdn.staticfile.org/clipboard.js/2.0.6/clipboard.min.js" ></script>
+  <script  src="/js/clipboard-use.js" ></script>
+
+
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+  <script  src="https://cdn.staticfile.org/tocbot/4.11.1/tocbot.min.js" ></script>
+  <script>
+    $(document).ready(function () {
+      var boardCtn = $('#board-ctn');
+      var boardTop = boardCtn.offset().top;
+
+      tocbot.init({
+        tocSelector: '#tocbot',
+        contentSelector: '#post-body',
+        headingSelector: 'h1,h2,h3,h4,h5,h6',
+        linkClass: 'tocbot-link',
+        activeLinkClass: 'tocbot-active-link',
+        listClass: 'tocbot-list',
+        isCollapsedClass: 'tocbot-is-collapsed',
+        collapsibleClass: 'tocbot-is-collapsible',
+        collapseDepth: 6,
+        scrollSmooth: true,
+        headingsOffset: -boardTop
+      });
+      if ($('.toc-list-item').length > 0) {
+        $('#toc').css('visibility', 'visible');
+      }
+    });
+  </script>
+
+
+
+  <script  src="https://cdn.staticfile.org/typed.js/2.0.11/typed.min.js" ></script>
+  <script>
+    var typed = new Typed('#subtitle', {
+      strings: [
+        '  ',
+        "Redis 基础数据类型&nbsp;",
+      ],
+      cursorChar: "_",
+      typeSpeed: 70,
+      loop: false,
+    });
+    typed.stop();
+    $(document).ready(function () {
+      $(".typed-cursor").addClass("h2");
+      typed.start();
+    });
+  </script>
+
+
+
+  <script  src="https://cdn.staticfile.org/anchor-js/4.2.2/anchor.min.js" ></script>
+  <script>
+    anchors.options = {
+      placement: "right",
+      visible: "hover",
+      
+    };
+    var el = "h1,h2,h3,h4,h5,h6".split(",");
+    var res = [];
+    for (item of el) {
+      res.push(".markdown-body > " + item)
+    }
+    anchors.add(res.join(", "))
+  </script>
+
+
+
+  <script  src="/js/local-search.js" ></script>
+  <script>
+    var path = "/local-search.xml";
+    var inputArea = document.querySelector("#local-search-input");
+    inputArea.onclick = function () {
+      searchFunc(path, 'local-search-input', 'local-search-result');
+      this.onclick = null
+    }
+  </script>
+
+
+
+  <script  src="https://cdn.staticfile.org/fancybox/3.5.7/jquery.fancybox.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.staticfile.org/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+  <script>
+    $('#post img:not(.no-zoom img, img[no-zoom]), img[zoom]').each(
+      function () {
+        var element = document.createElement('a');
+        $(element).attr('data-fancybox', 'images');
+        $(element).attr('href', $(this).attr('src'));
+        $(this).wrap(element);
+      }
+    );
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</body>
+</html>

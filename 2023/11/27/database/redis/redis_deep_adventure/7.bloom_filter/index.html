@@ -1,0 +1,674 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=&#34;auto&#34;>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" type="image/png" href="/img/favicon.png">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="description" content="是一个软件开发组织">
+  <meta name="author" content="lucas xie">
+  <meta name="keywords" content="andot,andotorg,andot.org,蚁点">
+  <title>Redis 布隆过滤器 - Andot Person Blog</title>
+
+  <link  rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/4.4.1/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.staticfile.org/github-markdown-css/4.0.0/github-markdown.min.css" />
+  <link  rel="stylesheet" href="/lib/hint/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.staticfile.org/highlight.js/10.0.0/styles/github-gist.min.css" />
+    
+  
+
+  
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_pf9vaxs7x7b.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_kmeydafke9r.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.2.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand"
+       href="/">&nbsp;<strong>Andot Person Blog</strong>&nbsp;</a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/links/">
+                <i class="iconfont icon-link-fill"></i>
+                友链
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" data-toggle="modal" data-target="#modalSearch">&nbsp;<i
+                class="iconfont icon-search"></i>&nbsp;</a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" href="javascript:">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner intro-2" id="background" parallax=true
+         style="background: url('/images/banner.jpeg') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="container page-header text-center fade-in-up">
+            <span class="h2" id="subtitle">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-author" aria-hidden="true"></i>
+      lucas xie
+    </span>
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2023-11-27 00:00" pubdate>
+        2023年11月27日 凌晨
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      1.5k 字
+    </span>
+  
+
+  
+    
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      16
+       分钟
+    </span>
+  
+
+  
+  
+    
+      <!-- LeanCloud 统计文章PV -->
+      <span id="leancloud-post-views-container" class="post-meta" style="display: none">
+        <i class="iconfont icon-eye" aria-hidden="true"></i>
+        截止当前共有 <span id="leancloud-post-views"></span> 次阅读
+      </span>
+    
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid">
+  <div class="row">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-md">
+      <div class="container nopadding-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto" id="post">
+            <!-- SEO header -->
+            <h1 style="display: none">Redis 布隆过滤器</h1>
+            
+              <p class="note note-info">
+                
+                  版权归原作者所有。 本文最后更新于：2023年12月5日 凌晨
+                
+              </p>
+            
+            <div class="markdown-body" id="post-body">
+              <h1 id="布隆过滤器"><a href="#布隆过滤器" class="headerlink" title="布隆过滤器"></a>布隆过滤器</h1><p>可以判断某个值是否在集合中</p>
+<p>推荐系统去重</p>
+<p>当压力很大时，频繁查询数据库就会有很大的压力，去重工作的性能就跟不上了</p>
+<h2 id="Bloom-Filter"><a href="#Bloom-Filter" class="headerlink" title="Bloom Filter"></a>Bloom Filter</h2><p>就是为了专门解决这个去重问题，在空间上还能节省90%以上的空间</p>
+<p>只是稍微有那么点不准确，也就是有一定的误判概率</p>
+<p>可以把布隆过滤器理解为一个不怎么精确的set结构，contains方法判断某个对方是否存在时，可能会误判，但是也不是特别不精准，只要设置参数合理，精确度也可以设置的足够精确，只会有小小的误判。</p>
+<p>可以保证过滤掉用户已经看过的内容，但是没有看过的可能也会有极小一部分被过滤，但是大部分新内容进行准确精准识别，保证可以推荐给用户的内容是无重复的。</p>
+<h2 id="命令"><a href="#命令" class="headerlink" title="命令"></a>命令</h2><pre><code class="hljs shell">bf.add k1 u1
+bf.add k1 u2
+bf.exists k1 u1
+bf.madd k1 u3 u4 u5
+bf.mexists k1 u3 u4 u5
+</code></pre>
+<h2 id="错误率"><a href="#错误率" class="headerlink" title="错误率"></a>错误率</h2><p>误判率大约1%多一点，有点高，可以优化</p>
+<p>redis提供了自定义参数的布隆过滤器，需要我们再add之前bf.reserve指令显示创建</p>
+<p>如果key已经存在了，会报错</p>
+<p>有三个参数  key error_rate((错误率) initial_size（预计放入的元素数量，当实际数量超出这个数值，误判率会上升，需要提前设置一个较大的数值避免超出导致误判率升高）<br>error_rate越低，需要的空间就越大</p>
+<p>如果不显示创建，默认错误率为 0.01 默认initial_size 100</p>
+<p>初始值设置的过大也会浪费存储空间，设置过小，会影响准确率，使用之前一定尽可能的估计元素数量，还需要加上一定量的冗余空间，避免实际元素意外高出估计值过多。</p>
+<p>有些对于不需要过于精确的场景，错误率稍微大一点也无伤大雅。</p>
+<h2 id="原理"><a href="#原理" class="headerlink" title="原理"></a>原理</h2><p>每个布隆过滤器对应Redis的数据结构就是一个大型的位数组和几个不一样的无偏hash函数</p>
+<p>无偏就是能够把元素的hash值算的比较均匀，让元素被hash映射到位数组中的位置比较随机。</p>
+<p>例如  hello  把 hello经过hash之后计算出hash值，通过hash值取模。得出的数值作为位数组的索引，找到对应数组位置之后，设置为1，这个时候完成了add操作</p>
+<p>如果查询是否存在时，也是先hash进行取模获取到位数组的位置，然后判断是否为1，如果位0，则不存在，如果为1 不一定存在，因为h是index e是一个index，他是一个组合，所以，有可能很多种组合组成了一个hello的位置，造成了一个hello存在的假象，这个时候，就看出 如果这个index计算的越稀疏，就越准确，越稠密越不准确。（也就是说错误率越小，占用空间越大的原因）</p>
+<p>使用时不能让实际元素数量大于初始化适量过大，当过于大时，应该重建过滤器，重新分配一个size更大的过滤器，再将所有历史元素add进去（这就要求在其他存储中存历史元素），因为error_rate不会因为数量刚已超出就急剧增加，给我们重建过滤器提供了较为宽松的时间。</p>
+<h2 id="空间占用估计"><a href="#空间占用估计" class="headerlink" title="空间占用估计"></a>空间占用估计</h2><h3 id="简单公式："><a href="#简单公式：" class="headerlink" title="简单公式："></a>简单公式：</h3><pre><code class="hljs angelscript">k=<span class="hljs-number">0.7</span>*(<span class="hljs-number">1</span>/n)  <span class="hljs-comment">//约等于</span>
+f=<span class="hljs-number">0.6185</span>^(<span class="hljs-number">1</span>/n)   <span class="hljs-comment">// ^ 表示次方计算，也就是Math.pow()</span></code></pre>
+
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><blockquote>
+<p>1、位数组相对越长（1/n），错误率f越低。</p>
+</blockquote>
+<blockquote>
+<p>2、位数组相对越长，hash函数需要的最佳数量也越多，影响计算效率。</p>
+</blockquote>
+<blockquote>
+<p>3、当一个元素需要1个字节（8bit）的指纹空间时（1/n=8）,错误率大约为2%。</p>
+</blockquote>
+<blockquote>
+<p>4、错误率为10%时，一个元素需要平均指纹空间为4.792个bit，大约为5bit。</p>
+</blockquote>
+<blockquote>
+<p>5、1%，9.585bit/个，~10bit</p>
+</blockquote>
+<blockquote>
+<p>6、0.1%，14.377bit/个，大约为15bit</p>
+</blockquote>
+<h4 id="set和布隆过滤器-空间占用说明："><a href="#set和布隆过滤器-空间占用说明：" class="headerlink" title="set和布隆过滤器 空间占用说明："></a>set和布隆过滤器 空间占用说明：</h4><p>set是存储的元素内容，过滤器只是元素的指纹，所以，set占用4或者8字节，取决于32位或者64位系统，本身还需要一个指针倍set集合引用，指纹空间一个元素才需要不足2个字节，所以布隆过滤器空间占用还是很有优势的。</p>
+<h4 id="计算地址"><a href="#计算地址" class="headerlink" title="计算地址"></a>计算地址</h4><p>计算麻烦，现有在线计算器可以计算</p>
+<p><code>https://krisives.github.io/bloom-calculator/</code></p>
+<h4 id="实际元素超出时，误判率会如何变化？"><a href="#实际元素超出时，误判率会如何变化？" class="headerlink" title="实际元素超出时，误判率会如何变化？"></a>实际元素超出时，误判率会如何变化？</h4><p>通过公式可以计算出实际元素超出预计元素个数是，错误的变化情况？</p>
+<p>f=(1-0.5^t)^k  // 极限近似，k是hash函数的最佳数量</p>
+<p>当t增大时，错误率f也跟着增大，分别选择错误率为10%，1%，0.1%的k值，</p>
+<pre><code class="hljs angelscript"><span class="hljs-number">1</span>、<span class="hljs-number">10</span>%，倍数比为<span class="hljs-number">2</span>时，错误率回升至接近<span class="hljs-number">40</span>%， 这个值就比较危险了
+<span class="hljs-number">2</span>、<span class="hljs-number">1</span>%，倍数比为<span class="hljs-number">2</span>时，-&gt; <span class="hljs-number">15</span>% , 也挺可怕
+<span class="hljs-number">3</span>、<span class="hljs-number">0.1</span>%，倍数比为<span class="hljs-number">2</span>时，-&gt; <span class="hljs-number">5</span>%， 也是比较高的</code></pre>
+
+<h3 id="布隆过滤器的其他应用"><a href="#布隆过滤器的其他应用" class="headerlink" title="布隆过滤器的其他应用"></a>布隆过滤器的其他应用</h3><p>在爬虫系统中，我们需要对URL去重，已经爬过网页可以不用爬了，会错过少量页面。</p>
+<p>还可以显著降低IO请求数量，通过过滤器过滤掉大量不存在row请求，然后再去磁盘查询。</p>
+<p>过滤器也放在了邮件系统的垃圾邮件，但是有误判率，所以也有正常的进入垃圾箱了。</p>
+
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/ReadingBooks/">ReadingBooks</a>
+                    
+                  </div>
+                
+                
+                  <div class="post-meta">
+                    <i class="iconfont icon-tags"></i>
+                    
+                      <a class="hover-with-bg" href="/tags/ReadingBooks-Book-Redis/">ReadingBooks,Book,Redis</a>
+                    
+                  </div>
+                
+              </div>
+              
+                <p class="note note-warning">本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明蚁点博客出处！</p>
+              
+              
+                <div class="post-prevnext row">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2023/12/01/database/redis/redis_deep_adventure/8.rate_limiting_sample/">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Redis 限流 - 简单限流</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2023/11/23/database/redis/redis_deep_adventure/6.hyper_log_log/">
+                        <span class="hidden-mobile">Redis HyperLogLog</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+              <!-- Comments -->
+              <article class="comments" id="comments">
+                
+                
+  <div class="disqus" style="width:100%">
+    <div id="disqus_thread"></div>
+    <script type="text/javascript">
+      var disqus_config = function () {
+        this.page.url = 'https://andotorg.github.io/2023/11/27/database/redis/redis_deep_adventure/7.bloom_filter/';
+        this.page.identifier = '/2023/11/27/database/redis/redis_deep_adventure/7.bloom_filter/';
+      };
+      function loadDisqus() {
+        (function () {
+          var d = document,
+            s = d.createElement('script');
+          s.src = '//' + '' + '.disqus.com/embed.js';
+          s.setAttribute('data-timestamp', new Date());
+          (d.head || d.body).appendChild(s);
+        })();
+      }
+      waitElementVisible('disqus_thread', loadDisqus);
+    </script>
+    <noscript>Please enable JavaScript to view the
+      <a target="_blank" href="https://disqus.com/?ref_noscript" rel="nofollow noopener noopener">comments powered by Disqus.</a>
+    </noscript>
+  </div>
+
+
+              </article>
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div id="tocbot"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+  </main>
+
+  
+    <a id="scroll-top-button" href="#" role="button">
+      <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+    </a>
+  
+
+  
+    <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+  
+
+  
+    <!-- APlayer 音乐播放器 -->
+    <div id="aplayer"></div>
+    <script defer src="https://cdn.staticfile.org/aplayer/1.10.1/APlayer.min.js" ></script>
+<link  rel="stylesheet" href="https://cdn.staticfile.org/aplayer/1.10.1/APlayer.min.css" />
+<script type="text/javascript">
+  var oldLoadAp = window.onload;
+  window.onload = function () {
+    oldLoadAp && oldLoadAp();
+
+    new APlayer({
+      container: document.getElementById('aplayer'),
+      fixed: true,
+      autoplay: 'false' === 'true',
+      loop: 'all',
+      order: 'random',
+      theme: '#b7daff',
+      preload: 'none',
+      audio: [{"name":"格日勒台雅布那毕","artist":"包银廷&王宇震","url":"/resource/music/nlb.mp3","cover":"/resource/covert.png"},{"name":"迎亲","artist":"artist","url":"/resource/music/yq.mp3","cover":"https://...cover.jpg"}]
+    });
+  }
+</script>
+
+  
+
+  
+
+  <footer class="mt-5">
+  <div class="text-center py-3">
+    <div>
+      <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a>
+      <i class="iconfont icon-love"></i>
+      <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener">
+        <span>Fluid</span></a>
+    </div>
+    
+  <div class="statistics">
+    
+    
+
+    
+      
+        <!-- 不蒜子统计PV -->
+        <span id="busuanzi_container_site_pv" style="display: none">
+            总访问量 
+            <span id="busuanzi_value_site_pv"></span>
+             次
+          </span>
+      
+      
+        <!-- 不蒜子统计UV -->
+        <span id="busuanzi_container_site_uv" style="display: none">
+            总访客数 
+            <span id="busuanzi_value_site_uv"></span>
+             人
+          </span>
+      
+    
+  </div>
+
+
+    
+  <!-- 备案信息 -->
+  <div class="beian">
+    <a href="http://beian.miit.gov.cn/" target="_blank"
+       rel="nofollow noopener">鲁ICP证 号</a>
+    
+      <a
+        href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=12345678"
+        rel="nofollow noopener"
+        class="beian-police"
+        target="_blank"
+      >
+        <span class="beian-police-sep">&nbsp;|&nbsp;</span>
+        
+          <img src="/img/police_beian.png" srcset="/img/loading.gif" alt="police-icon" />
+        
+        <span>鲁公网安备12345678号</span>
+      </a>
+     
+  </div>
+
+
+    
+  </div>
+</footer>
+
+<!-- SCRIPTS -->
+<script  src="https://cdn.staticfile.org/jquery/3.4.1/jquery.min.js" ></script>
+<script  src="https://cdn.staticfile.org/twitter-bootstrap/4.4.1/js/bootstrap.min.js" ></script>
+<script  src="/js/debouncer.js" ></script>
+<script  src="/js/main.js" ></script>
+
+<!-- Plugins -->
+
+
+  
+    <script  src="/js/lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  <script defer src="https://cdn.staticfile.org/clipboard.js/2.0.6/clipboard.min.js" ></script>
+  <script  src="/js/clipboard-use.js" ></script>
+
+
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+  <script  src="https://cdn.staticfile.org/tocbot/4.11.1/tocbot.min.js" ></script>
+  <script>
+    $(document).ready(function () {
+      var boardCtn = $('#board-ctn');
+      var boardTop = boardCtn.offset().top;
+
+      tocbot.init({
+        tocSelector: '#tocbot',
+        contentSelector: '#post-body',
+        headingSelector: 'h1,h2,h3,h4,h5,h6',
+        linkClass: 'tocbot-link',
+        activeLinkClass: 'tocbot-active-link',
+        listClass: 'tocbot-list',
+        isCollapsedClass: 'tocbot-is-collapsed',
+        collapsibleClass: 'tocbot-is-collapsible',
+        collapseDepth: 6,
+        scrollSmooth: true,
+        headingsOffset: -boardTop
+      });
+      if ($('.toc-list-item').length > 0) {
+        $('#toc').css('visibility', 'visible');
+      }
+    });
+  </script>
+
+
+
+  <script  src="https://cdn.staticfile.org/typed.js/2.0.11/typed.min.js" ></script>
+  <script>
+    var typed = new Typed('#subtitle', {
+      strings: [
+        '  ',
+        "Redis 布隆过滤器&nbsp;",
+      ],
+      cursorChar: "_",
+      typeSpeed: 70,
+      loop: false,
+    });
+    typed.stop();
+    $(document).ready(function () {
+      $(".typed-cursor").addClass("h2");
+      typed.start();
+    });
+  </script>
+
+
+
+  <script  src="https://cdn.staticfile.org/anchor-js/4.2.2/anchor.min.js" ></script>
+  <script>
+    anchors.options = {
+      placement: "right",
+      visible: "hover",
+      
+    };
+    var el = "h1,h2,h3,h4,h5,h6".split(",");
+    var res = [];
+    for (item of el) {
+      res.push(".markdown-body > " + item)
+    }
+    anchors.add(res.join(", "))
+  </script>
+
+
+
+  <script  src="/js/local-search.js" ></script>
+  <script>
+    var path = "/local-search.xml";
+    var inputArea = document.querySelector("#local-search-input");
+    inputArea.onclick = function () {
+      searchFunc(path, 'local-search-input', 'local-search-result');
+      this.onclick = null
+    }
+  </script>
+
+
+
+  <script  src="https://cdn.staticfile.org/fancybox/3.5.7/jquery.fancybox.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.staticfile.org/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+  <script>
+    $('#post img:not(.no-zoom img, img[no-zoom]), img[zoom]').each(
+      function () {
+        var element = document.createElement('a');
+        $(element).attr('data-fancybox', 'images');
+        $(element).attr('href', $(this).attr('src'));
+        $(this).wrap(element);
+      }
+    );
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</body>
+</html>
