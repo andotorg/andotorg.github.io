@@ -1,0 +1,246 @@
+/* Cyberpunk / AI-Neon — Fluid theme overlay. Loads after main.css */
+
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap");
+
+:root {
+  --cyber-cyan: #00f5ff;
+  --cyber-cyan-dim: rgba(0, 245, 255, 0.35);
+  --cyber-magenta: #ff2a6d;
+  --cyber-violet: #bf5fff;
+  --cyber-bg-deep: #050814;
+  --cyber-grid: rgba(0, 245, 255, 0.06);
+  --cyber-glow: 0 0 12px rgba(0, 245, 255, 0.45);
+  --cyber-panel: rgba(12, 18, 40, 0.92);
+}
+
+/* ── Global palette (overrides Fluid CSS variables) ── */
+:root,
+:root:not([data-user-color-scheme]) {
+  --body-bg-color: var(--cyber-bg-deep) !important;
+  --board-bg-color: rgba(8, 12, 28, 0.88) !important;
+  --text-color: #c8dce8 !important;
+  --sec-text-color: #7a9aad !important;
+  --post-text-color: #d4e8f0 !important;
+  --post-heading-color: #00f5ff !important;
+  --post-link-color: #5ce1ff !important;
+  --link-hover-color: #ff2a6d !important;
+  --link-hover-bg-color: rgba(0, 245, 255, 0.09) !important;
+  --navbar-bg-color: rgba(3, 6, 18, 0.94) !important;
+  --navbar-text-color: #00f5ff !important;
+}
+
+[data-user-color-scheme="light"] {
+  --body-bg-color: #0a0f1c !important;
+  --board-bg-color: rgba(10, 16, 35, 0.9) !important;
+  --text-color: #b8d0e0 !important;
+  --sec-text-color: #6f8fa8 !important;
+  --post-text-color: #d0e4f0 !important;
+  --post-heading-color: #00e5ff !important;
+  --post-link-color: #5ce1ff !important;
+  --link-hover-color: #ff4d8a !important;
+  --link-hover-bg-color: rgba(0, 245, 255, 0.08) !important;
+  --navbar-bg-color: rgba(5, 8, 20, 0.95) !important;
+  --navbar-text-color: #00f5ff !important;
+}
+
+[data-user-color-scheme="dark"] {
+  --body-bg-color: var(--cyber-bg-deep) !important;
+  --board-bg-color: rgba(6, 10, 24, 0.9) !important;
+  --navbar-bg-color: rgba(2, 4, 14, 0.96) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-user-color-scheme="light"]) {
+    --body-bg-color: var(--cyber-bg-deep) !important;
+    --board-bg-color: rgba(6, 10, 24, 0.9) !important;
+    --navbar-bg-color: rgba(2, 4, 14, 0.96) !important;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: "Noto Sans SC", "JetBrains Mono", system-ui, sans-serif !important;
+  letter-spacing: 0.02em;
+  position: relative;
+  background-color: var(--body-bg-color) !important;
+}
+
+/* Animated grid + subtle scanlines */
+body::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background-image:
+    linear-gradient(var(--cyber-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--cyber-grid) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, black 20%, transparent 75%);
+  opacity: 0.85;
+}
+
+body::after {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.04) 2px,
+    rgba(0, 0, 0, 0.04) 4px
+  );
+  opacity: 0.35;
+}
+
+#container,
+#wrap {
+  position: relative;
+  z-index: 1;
+}
+
+/* Nav — neonunderline + glow */
+.navbar {
+  border-bottom: 1px solid var(--cyber-cyan-dim) !important;
+  box-shadow: 0 0 24px rgba(0, 245, 255, 0.12), 0 4px 24px rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: blur(10px);
+}
+
+.navbar a,
+.navbar .nav-link,
+.navbar-brand {
+  font-family: "Orbitron", "Noto Sans SC", sans-serif !important;
+  font-weight: 500 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem !important;
+}
+
+.navbar .nav-link:hover {
+  color: var(--cyber-magenta) !important;
+  text-shadow: 0 0 8px rgba(255, 42, 109, 0.6);
+}
+
+/* Banner — synthwave style mask */
+.banner .mask {
+  background: linear-gradient(
+    160deg,
+    rgba(40, 0, 60, 0.72) 0%,
+    rgba(0, 30, 50, 0.65) 45%,
+    rgba(0, 10, 30, 0.85) 100%
+  ) !important;
+}
+
+.page-header,
+.page-header h1 {
+  font-family: "Orbitron", "Noto Sans SC", sans-serif !important;
+  text-shadow: 0 0 20px rgba(0, 245, 255, 0.5), 0 0 40px rgba(191, 95, 255, 0.25);
+}
+
+#subtitle,
+.typed-cursor {
+  font-family: "JetBrains Mono", monospace !important;
+  color: var(--cyber-magenta) !important;
+  text-shadow: 0 0 12px rgba(255, 42, 109, 0.55);
+}
+
+/* Cards / boards */
+.board,
+.card,
+.post-item,
+.list-group-item {
+  border: 1px solid var(--cyber-cyan-dim) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35), 0 0 1px rgba(0, 245, 255, 0.3) !important;
+  background: var(--board-bg-color) !important;
+  border-radius: 4px !important;
+}
+
+.post-item:hover,
+.card:hover {
+  border-color: rgba(0, 245, 255, 0.55) !important;
+  box-shadow: var(--cyber-glow), 0 8px 32px rgba(0, 0, 0, 0.45) !important;
+}
+
+/* Article typography */
+.markdown-body h1,
+.markdown-body h2 {
+  font-family: "Orbitron", "Noto Sans SC", sans-serif !important;
+  border-bottom-color: var(--cyber-cyan-dim) !important;
+}
+
+.markdown-body h3,
+.markdown-body h4 {
+  color: var(--cyber-violet) !important;
+}
+
+.markdown-body a {
+  text-decoration: none;
+  border-bottom: 1px dashed var(--cyber-cyan-dim);
+}
+
+.markdown-body a:hover {
+  border-bottom-color: var(--cyber-magenta);
+  text-shadow: 0 0 8px rgba(255, 42, 109, 0.4);
+}
+
+.markdown-body :not(pre) > code {
+  font-family: "JetBrains Mono", monospace !important;
+  background: rgba(0, 245, 255, 0.08) !important;
+  color: var(--cyber-cyan) !important;
+  border: 1px solid var(--cyber-cyan-dim);
+}
+
+/* Code blocks — terminal frame */
+.markdown-body pre,
+.markdown-body .highlight pre {
+  font-family: "JetBrains Mono", monospace !important;
+  border: 1px solid var(--cyber-cyan-dim) !important;
+  box-shadow: inset 0 0 30px rgba(0, 245, 255, 0.06);
+  border-radius: 6px !important;
+}
+
+/* Selection */
+::selection {
+  background: rgba(255, 42, 109, 0.35);
+  color: #fff;
+}
+
+/* Footer */
+footer {
+  border-top: 1px solid var(--cyber-cyan-dim) !important;
+  background: rgba(3, 6, 16, 0.95) !important;
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 0.85rem !important;
+}
+
+/* Scroll hint */
+.scroll-down-bar {
+  border-color: var(--cyber-cyan) !important;
+  box-shadow: 0 0 10px var(--cyber-cyan-dim);
+}
+
+/* Floating buttons */
+#scroll-top-button,
+#scroll-top-button i {
+  color: var(--cyber-cyan) !important;
+  border-color: var(--cyber-cyan-dim) !important;
+  box-shadow: var(--cyber-glow) !important;
+}
+
+/* Tag pills / badges if present */
+.badge,
+.tagcloud a {
+  border: 1px solid var(--cyber-cyan-dim) !important;
+  background: rgba(0, 245, 255, 0.06) !important;
+}
+
+.tagcloud a:hover {
+  color: var(--cyber-magenta) !important;
+  box-shadow: 0 0 12px rgba(255, 42, 109, 0.35);
+}
